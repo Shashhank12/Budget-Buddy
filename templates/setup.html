@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Setup Your Financial Profile</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f0f8ff;
+        }
+        .form-container {
+            max-width: 600px;
+            margin: 60px auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 0 15px rgba(0, 123, 255, 0.2);
+        }
+        .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="form-container">
+            <h3 class="text-center text-primary mb-4">Set Up Your Financial Profile</h3>
+            <form method="POST">
+                <!-- Account Name -->
+                <div class="mb-3">
+                    <label for="account_name" class="form-label">Account Name</label>
+                    <input type="text" class="form-control" id="account_name" name="account_name" placeholder="e.g. My Main Account" required>
+                </div>
+
+                <!-- Account Type -->
+                <div class="mb-3">
+                    <label for="account_type" class="form-label">Account Type</label>
+                    <select class="form-select" id="account_type" name="account_type" required>
+                        <option value="" disabled selected>Select account type</option>
+                        <option value="Checkings">Checkings</option>
+                        <option value="Savings">Savings</option>
+                    </select>
+                </div>
+                
+                <!-- Goal Target -->
+                <div class="mb-3">
+                    <label for="account_balance class="form-label">Account Balance ($)</label>
+                    <input type="number" step="0.01" class="form-control" id="account_balance" name="account_balance" required>
+                </div>
+
+                <!-- Monthly Budget -->
+                <div class="mb-3">
+                    <label for="monthly_budget" class="form-label">Monthly Budget ($)</label>
+                    <input type="number" step="0.01" class="form-control" id="monthly_budget" name="monthly_budget" required>
+                </div>
+
+                <!-- Financial Goal -->
+                <div class="mb-3">
+                    <label for="goal1" class="form-label">Your Goal</label>
+                    <input type="text" class="form-control" id="goal1" name="goal1" placeholder="e.g. Save for a car" required>
+                </div>
+                
+                <!-- Goal Target -->
+                <div class="mb-3">
+                    <label for="goal_target" class="form-label">Goal Target ($)</label>
+                    <input type="number" step="0.01" class="form-control" id="goal_target" name="goal_target" required>
+                </div>
+
+                <!-- Goal Deadline -->
+                <div class="mb-3">
+                    <label for="goal_deadline" class="form-label">Target Date to Achieve Goal</label>
+                    <input type="date" class="form-control" id="goal_deadline" name="goal_deadline" required>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary">Submit Setup</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS (optional) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

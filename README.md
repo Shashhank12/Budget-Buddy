@@ -11,3 +11,28 @@
     
     
     
+Tables Needed
+* Users
+    * User_ID
+    * Full Name
+    * Email
+    * Password
+* Accounts
+    * ID
+    * Type
+    * Name
+* Transactions
+    * ID
+    * DATE/TIME
+    * Amount
+    * Category
+    * Description
+* Goals
+    * ID
+    * Type
+    * 
+
+Relationships
+* Users <-> Accounts
+* 
+    
