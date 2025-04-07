@@ -22,6 +22,14 @@ db = mysql.connector.connect(
 def index():
     return render_template('index.html')
 
+@app.route('/index.html')
+def index_redirect():
+    return redirect(url_for('index'))
+
+@app.route('/home.html')
+def home_redirect():
+    return redirect(url_for('index'))
+
 @app.route('/login', methods = ['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -230,7 +238,6 @@ def dashboard():
             
         remaining = float(budget_goal) - float(total_spent)
         
-        # Round to 2 decimal places as a string
         total_balance = "{:.2f}".format(total_balance)
         budget_goal = "{:.2f}".format(float(budget_goal))
         total_spent = "{:.2f}".format(float(total_spent))
