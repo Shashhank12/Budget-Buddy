@@ -9,30 +9,3 @@
     * mysql-connector-python-9.2.0
 * MySQL 8.0.41
     
-    
-    
-Tables Needed
-* Users
-    * User_ID
-    * Full Name
-    * Email
-    * Password
-* Accounts
-    * ID
-    * Type
-    * Name
-* Transactions
-    * ID
-    * DATE/TIME
-    * Amount
-    * Category
-    * Description
-* Goals
-    * ID
-    * Type
-    * 
-
-Relationships
-* Users <-> Accounts
-* 
-    
