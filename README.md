@@ -8,4 +8,3 @@
     * matplotlib-3.10.1
     * mysql-connector-python-9.2.0
 * MySQL 8.0.41
-    

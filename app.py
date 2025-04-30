@@ -1,22 +1,100 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 import re
 import string
 import os
+import io
+import base64
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 from dotenv import load_dotenv
+import google.generativeai as genai
+import datetime
+from dateutil.relativedelta import relativedelta
+import mysql.connector.pooling
+import pandas as pd
+from sklearn.linear_model import LinearRegression
+import numpy as np
+import json
+from decimal import Decimal # For handling currency properly in JSON
+
 load_dotenv()
 
-import mysql.connector
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY")
 
-db = mysql.connector.connect(
-    host=os.getenv("DB_HOST"),
-    user=os.getenv("DB_USER"),
-    password=os.getenv("DB_PASSWORD"),
-    database=os.getenv("DB_NAME"),
-    port=os.getenv("DB_PORT"),
-)
+pool_config = {
+    "host": os.getenv("DB_HOST"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "database": os.getenv("DB_NAME"),
+    "port": os.getenv("DB_PORT"),
+    "autocommit": True,
+    "pool_size": 10,
+    "pool_reset_session": True
+}
+
+connection_pool = mysql.connector.pooling.MySQLConnectionPool(**pool_config)
+
+def get_db_connection():
+    return connection_pool.get_connection()
+
+
+try:
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    genai.configure(api_key=GEMINI_API_KEY)
+    generation_config = genai.GenerationConfig(
+        temperature=0.7,
+        top_p=0.95,
+        top_k=64,
+        max_output_tokens=8192,
+        response_mime_type="text/plain",
+    )
+    safety_settings = [
+        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+    ]
+
+    gemini_model = genai.GenerativeModel(
+        model_name='gemini-1.5-flash',
+        safety_settings=safety_settings,
+        generation_config=generation_config
+    )
+except Exception as e:
+    print(f"Error configuring Gemini: {e}")
+    gemini_model = None
+
+# --- JSON Encoder for Decimal ---
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj) # Convert Decimal to float for JSON
+        return super(DecimalEncoder, self).default(obj)
+
+app.json_encoder = DecimalEncoder
+
+def create_message_image(message, width=6, height=4, dpi=72): # Lower DPI for message images
+    fig = None
+    try:
+        fig, ax = plt.subplots(figsize=(width, height), dpi=dpi)
+        ax.text(0.5, 0.5, message, ha='center', va='center', fontsize=12, color='#6c757d', wrap=True) # Smaller font for messages
+        ax.set_axis_off()
+        fig.tight_layout(pad=0.5)
+
+        buffer = io.BytesIO()
+        fig.savefig(buffer, format='png', transparent=True)
+        buffer.seek(0)
+        plt.close(fig)
+        base64_str = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        return f'data:image/png;base64,{base64_str}'
+    except Exception as e:
+        print(f"Error creating message image: {e}")
+        if fig: plt.close(fig)
+        return "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
 
 @app.route('/')
 def index():
@@ -37,25 +115,27 @@ def login():
         password = request.form['password']
 
         try:
-            cursor = db.cursor(dictionary=True)
-            cursor.execute("SELECT * FROM users WHERE Email = %s", (email,))
-            user = cursor.fetchone()
-            if user:
-                if check_password_hash(user["Password"], password):
-                    session['user_id'] = user['User_ID']
-                    session['user_name'] = user['Full_Name']
-                    if check_setup_complete():
-                        return redirect(url_for('dashboard'))
+            with get_db_connection() as db:
+                cursor = db.cursor(dictionary=True)
+                cursor.execute("SELECT * FROM users WHERE Email = %s", (email,))
+                user = cursor.fetchone()
+                cursor.close()
+                if user:
+                    if check_password_hash(user["Password"], password):
+                        session['user_id'] = user['User_ID']
+                        session['user_name'] = user['Full_Name']
+                        if check_setup_complete(user['User_ID']):
+                            return redirect(url_for('dashboard'))
+                        else:
+                            return redirect(url_for('setup'))
                     else:
-                        return redirect(url_for('setup'))
+                        flash('Incorrect login, Try Again!', 'error')
+                        return redirect(url_for('login'))
                 else:
                     flash('Incorrect login, Try Again!', 'error')
                     return redirect(url_for('login'))
-            else:
-                flash('Incorrect login, Try Again!', 'error')
-                return redirect(url_for('login'))
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Error during login: {e}")
             flash('An error occurred while logging in, please try again later.', 'error')
             return redirect(url_for('login'))
 
@@ -72,14 +152,14 @@ def register():
         if password != confirm_password:
             flash('Passwords do not match, Try Again!', 'error')
             return redirect(url_for('register'))
-        
+
         if len(password) < 8:
             flash('Password must be longer than 8 characters long!', 'error')
             return redirect(url_for('register'))
-        
+
         upper_flag = False
         lower_flag = False
-        
+
         for letter in password:
             if letter.isupper():
                 upper_flag = True
@@ -92,26 +172,32 @@ def register():
         if not(upper_flag and lower_flag and special_flag):
             flash('Password must have at least 1 lowercase, 1 uppercase, and 1 special character', 'error')
             return redirect(url_for('register'))
-    
+
         try:
-            cursor = db.cursor()
-            cursor.execute("SELECT * FROM users WHERE Email = %s", (email,))
-            if cursor.fetchone():
-                flash('Email already exists, Try Again!')
-                return redirect(url_for('register'))
-            
-            hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
-            cursor.execute("INSERT INTO users (Full_Name, Email, Password) VALUES (%s, %s, %s)", (fullname, email, hashed_password))
-            
-            db.commit()
-            cursor = db.cursor(dictionary=True)
-            cursor.execute("SELECT * FROM users WHERE Email = %s", (email,))
-            user = cursor.fetchone()
-            session['user_id'] = user['User_ID']
-            session['user_name'] = user['Full_Name']
-            return redirect(url_for('setup'))
+            with get_db_connection() as db:
+                cursor = db.cursor(dictionary=True)
+                cursor.execute("SELECT * FROM users WHERE Email = %s", (email,))
+                if cursor.fetchone():
+                    flash('Email already exists, Try Again!')
+                    cursor.close()
+                    return redirect(url_for('register'))
+
+                hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
+                cursor.execute("INSERT INTO users (Full_Name, Email, Password) VALUES (%s, %s, %s)", (fullname, email, hashed_password))
+                db.commit()
+
+                cursor.execute("SELECT User_ID, Full_Name FROM users WHERE Email = %s", (email,))
+                user = cursor.fetchone()
+                cursor.close()
+                if user:
+                    session['user_id'] = user['User_ID']
+                    session['user_name'] = user['Full_Name']
+                    return redirect(url_for('setup'))
+                else:
+                     flash('Registration succeeded but failed to log in automatically.', 'warning')
+                     return redirect(url_for('login'))
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Error during registration: {e}")
             flash('An error occurred while registering, please try again later.', 'error')
             return redirect(url_for('register'))
     return render_template('register.html')
@@ -125,137 +211,907 @@ def logout():
 
 @app.route('/setup', methods=['GET', 'POST'])
 def setup():
-    if logged_in() and not check_setup_complete():
-        if request.method == 'POST':
-            account_name = request.form['account_name']
-            account_type = request.form['account_type']
-            account_balance = request.form['account_balance']
-            goal_target = request.form['goal_target']
-            budget = request.form['monthly_budget']
-            goal = request.form['goal1']
-            deadline = request.form['goal_deadline']
-            
+    user_id = session.get('user_id')
+    if not user_id:
+         return redirect(url_for('login'))
 
-            try:
+    if check_setup_complete(user_id):
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        account_name = request.form['account_name']
+        account_type = request.form['account_type']
+        account_balance = request.form['account_balance']
+        goal_target = request.form['goal_target']
+        budget = request.form['monthly_budget']
+        goal = request.form['goal1']
+        deadline = request.form['goal_deadline']
+
+
+        try:
+            with get_db_connection() as db:
                 cursor = db.cursor()
                 cursor.execute("INSERT INTO accounts (Account_Name, Account_Balance, Account_Type) VALUES (%s, %s, %s)", (account_name, account_balance, account_type))
-                db.commit()
-                
-                # Get the Account_ID of the newly created account
-                cursor.execute("SELECT LAST_INSERT_ID();")
-                account_id = cursor.fetchone()[0]
-                print(account_id)
-                cursor.execute("INSERT INTO has (User_ID, Account_ID) VALUES (%s, %s)", (session['user_id'], account_id))
-                db.commit()
-                
+                account_id = cursor.lastrowid
+                cursor.execute("INSERT INTO has (User_ID, Account_ID) VALUES (%s, %s)", (user_id, account_id))
+
                 cursor.execute("INSERT INTO goals (Goal_Name, Goal_Date, Goal_Target, Goal_Description, Monthly_Budget) VALUES (%s, %s, %s, %s, %s)", ("Monthly Budget", "2000-01-01", budget, "Monthly Budget", 1))
-                db.commit()
-                
-                cursor.execute("SELECT LAST_INSERT_ID();")
-                goal_id = cursor.fetchone()[0]
-                cursor.execute("INSERT INTO sets (User_ID, Goal_ID) VALUES (%s, %s)", (session['user_id'], goal_id))
-                db.commit()
-                
+                budget_goal_id = cursor.lastrowid
+                cursor.execute("INSERT INTO sets (User_ID, Goal_ID) VALUES (%s, %s)", (user_id, budget_goal_id))
+
                 cursor.execute("INSERT INTO goals (Goal_Name, Goal_Date, Goal_Target, Goal_Description, Monthly_Budget) VALUES (%s, %s, %s, %s, %s)", (goal, deadline, goal_target, "First Goal", 0))
+                first_goal_id = cursor.lastrowid
+                cursor.execute("INSERT INTO sets (User_ID, Goal_ID) VALUES (%s, %s)", (user_id, first_goal_id))
+
                 db.commit()
-                
-                cursor.execute("SELECT LAST_INSERT_ID();")
-                goal_id = cursor.fetchone()[0]
-                cursor.execute("INSERT INTO sets (User_ID, Goal_ID) VALUES (%s, %s)", (session['user_id'], goal_id))
-                db.commit()
+                cursor.close()
 
-            except Exception as e:
-                print(f"Error: {e}")
-                flash('An error occurred while setting up your account, please try again later.', 'error')
-                return redirect(url_for('setup'))
+        except Exception as e:
+            print(f"Error during setup: {e}")
+            flash('An error occurred while setting up your account, please try again later.', 'error')
+            return redirect(url_for('setup'))
 
-            flash("Setup complete!", "success")
-            return redirect(url_for('dashboard'))
-
-        return render_template('setup.html')
-    elif logged_in():
+        flash("Setup complete!", "success")
         return redirect(url_for('dashboard'))
-    else:
-        return redirect(url_for('login'))
+
+    return render_template('setup.html')
 
 @app.route('/transaction', methods = ['GET', 'POST'])
 def transaction():
-    if logged_in():
-        if request.method == 'POST':
-            amount = request.form['amount']
-            description = request.form['description']
-            date = request.form['date']
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect(url_for('login'))
 
-            try:
-                cursor = db.cursor()
+    accounts = []
+    categories = load_categories(user_id) # Need categories for the form
+
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor(dictionary=True)
+            cursor.execute("SELECT Account_ID, Account_Name, Account_Balance FROM accounts JOIN has USING (Account_ID) WHERE User_ID = %s", (user_id,))
+            accounts = cursor.fetchall()
+            cursor.close()
+    except Exception as e:
+        print(f"Error loading accounts for transaction page: {e}")
+        flash('Could not load account data.', 'error')
+
+    if request.method == 'POST':
+        amount = request.form['amount']
+        description = request.form['description']
+        date = request.form['date']
+        category_name = request.form['category']
+        account_id_form = request.form['account']
+
+        try:
+            with get_db_connection() as db:
+                cursor = db.cursor(dictionary=True)
+
+                cursor.execute("SELECT Category_ID FROM categories JOIN selects USING (Category_ID) WHERE User_ID = %s AND Category_Name = %s", (user_id, category_name))
+                category_result = cursor.fetchone()
+                if not category_result:
+                     flash('Selected category not found.', 'error')
+                     cursor.close()
+                     return render_template('transaction.html', categories=categories, accounts=accounts)
+                category_id = category_result['Category_ID']
+
                 cursor.execute("INSERT INTO transactions (Transaction_Amount, Transaction_Description, Transaction_Date) VALUES (%s, %s, %s)", (amount, description, date))
-                db.commit()
+                transaction_id = cursor.lastrowid
 
-                cursor.execute("SELECT LAST_INSERT_ID();")
-                transaction_id = cursor.fetchone()[0]
-                cursor.execute("INSERT INTO makes (User_ID, Transaction_ID) VALUES (%s, %s)", (session['user_id'], transaction_id))
-                db.commit()
+                cursor.execute("INSERT INTO makes (User_ID, Transaction_ID) VALUES (%s, %s)", (user_id, transaction_id))
+                cursor.execute("INSERT INTO falls_under (Transaction_ID, Category_ID) VALUES (%s, %s)", (transaction_id, category_id))
+                cursor.execute("INSERT INTO made_on (Transaction_ID, Account_ID) VALUES (%s, %s)", (transaction_id, account_id_form))
 
-            except Exception as e:
-                print(f"Error: {e}")
-                flash('An error occurred while inputting the transaction, please try again later.', 'error')
-                return redirect(url_for('transaction'))
-            
-            # flash("Transaction recorded!", "success")
-            return redirect(url_for('dashboard'))
-            
-        return render_template('transaction.html')
-    else:
+                cursor.execute("UPDATE accounts SET Account_Balance = Account_Balance - %s WHERE Account_ID = %s", (amount, account_id_form))
+
+                db.commit()
+                cursor.close()
+
+                flash('Transaction recorded successfully!', 'success')
+                return redirect(url_for('dashboard'))
+
+        except Exception as e:
+            print(f"Error saving transaction: {e}")
+            flash('Failed to save transaction. Please try again.', 'error')
+            # Reload potentially stale account data in case of error before render
+            try:
+                 with get_db_connection() as db_reload:
+                     cursor_reload = db_reload.cursor(dictionary=True)
+                     cursor_reload.execute("SELECT Account_ID, Account_Name, Account_Balance FROM accounts JOIN has USING (Account_ID) WHERE User_ID = %s", (user_id,))
+                     accounts = cursor_reload.fetchall()
+                     cursor_reload.close()
+            except Exception as e_reload:
+                 print(f"Error reloading accounts after transaction error: {e_reload}")
+
+            return render_template('transaction.html', categories=categories, accounts=accounts)
+    else: # GET request
+        return render_template('transaction.html', categories=categories, accounts=accounts)
+
+
+@app.route('/category', methods = ['GET', 'POST'])
+def category():
+    user_id = session.get('user_id')
+    if not user_id:
         return redirect(url_for('login'))
 
-@app.route('/dashboard')
+    categories = load_categories(user_id)
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        try:
+            with get_db_connection() as db:
+                cursor = db.cursor(dictionary=True)
+                if action == 'add':
+                    new_category_name = request.form['add_category'].strip()
+                    if new_category_name:
+                        cursor.execute("SELECT Category_ID FROM categories JOIN selects USING (Category_ID) WHERE User_ID = %s AND Category_Name = %s", (user_id, new_category_name))
+                        if cursor.fetchone():
+                             flash('Category already exists.', 'warning')
+                        else:
+                            cursor.execute("INSERT INTO categories (Category_Name) VALUES (%s)", (new_category_name,))
+                            category_id = cursor.lastrowid
+                            cursor.execute("INSERT INTO selects (User_ID, Category_ID) VALUES (%s, %s)", (user_id, category_id))
+                            db.commit()
+                            flash('Category added.', 'success')
+                            categories = load_categories(user_id) # Refresh list
+                    else:
+                        flash('Category name cannot be empty.', 'error')
+
+                elif action == 'save':
+                    updated_count = 0
+                    for key, new_name in request.form.items():
+                        if key.startswith("new_category-"):
+                            index = key.split('-')[1]
+                            old_name_key = f'old_category-{index}'
+                            old_name = request.form.get(old_name_key)
+                            new_name = new_name.strip()
+
+                            if old_name and new_name and old_name != new_name:
+                                cursor.execute("SELECT Category_ID FROM categories JOIN selects USING (Category_ID) WHERE User_ID = %s AND Category_Name = %s", (user_id, old_name))
+                                category_result = cursor.fetchone()
+                                if category_result:
+                                     category_id = category_result['Category_ID']
+                                     # Check if new name already exists for this user
+                                     cursor.execute("SELECT Category_ID FROM categories JOIN selects USING (Category_ID) WHERE User_ID = %s AND Category_Name = %s AND Category_ID != %s", (user_id, new_name, category_id))
+                                     if cursor.fetchone():
+                                         flash(f'Cannot rename "{old_name}" to "{new_name}", category already exists.', 'error')
+                                     else:
+                                         cursor.execute("UPDATE categories SET Category_Name = %s WHERE Category_ID = %s", (new_name, category_id))
+                                         updated_count += 1
+                    if updated_count > 0:
+                        db.commit()
+                        flash(f'{updated_count} categor{"y" if updated_count == 1 else "ies"} updated.', 'success')
+                        categories = load_categories(user_id) # Refresh list
+
+                elif action == 'delete':
+                    category_name_to_delete = request.form.get('delete_target')
+                    if category_name_to_delete:
+                        cursor.execute("SELECT Category_ID FROM categories JOIN selects USING (Category_ID) WHERE User_ID = %s AND Category_Name = %s", (user_id, category_name_to_delete))
+                        category_result = cursor.fetchone()
+                        if category_result:
+                             category_id = category_result['Category_ID']
+                             # Check if category is in use by transactions before deleting maybe? Optional.
+                             cursor.execute("DELETE FROM selects WHERE User_ID = %s AND Category_ID = %s", (user_id, category_id))
+                             # Consider if category should be deleted globally or just unlinked
+                             # If categories are shared, only delete from selects. If private, delete from categories too.
+                             # Assuming private for now:
+                             cursor.execute("DELETE FROM categories WHERE Category_ID = %s", (category_id,))
+                             db.commit()
+                             flash(f'Category "{category_name_to_delete}" deleted.', 'success')
+                             categories = load_categories(user_id) # Refresh list
+                        else:
+                             flash('Category not found for deletion.', 'warning')
+                cursor.close()
+
+        except Exception as e:
+             print(f"Error processing category action {action}: {e}")
+             flash('An error occurred while managing categories.', 'error')
+             # Refresh categories even on error to show current state
+             categories = load_categories(user_id)
+
+    return render_template('category.html', categories=categories)
+
+
+def load_categories(user_id):
+    categories = []
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor()
+            cursor.execute("SELECT Category_Name FROM categories JOIN selects USING (Category_ID) WHERE User_ID = %s ORDER BY Category_Name", (user_id,))
+            categories_tuples = cursor.fetchall()
+            cursor.close()
+            categories = [category[0] for category in categories_tuples]
+    except Exception as e:
+        print(f"Error loading categories for user {user_id}: {e}")
+    return categories
+
+@app.route('/dashboard', methods=['GET', 'POST'])
 def dashboard():
-    if logged_in():
-        user_name = session['user_name']
-        user_id = session['user_id']
-        total_balance = 0
-        total_spent = 0
-
-        cursor = db.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM users WHERE User_ID = %s", (user_id,))
-        user = cursor.fetchone()
-        
-        cursor = db.cursor()
-        cursor.execute("SELECT Account_Balance FROM accounts WHERE Account_ID IN (SELECT Account_ID FROM has WHERE User_ID = %s)", (user_id,))
-        balances = cursor.fetchall()
-        for balance in balances:
-            total_balance = total_balance + balance[0]
-            
-        cursor = db.cursor(dictionary=True)
-        cursor.execute("SELECT Goal_Target FROM goals WHERE Monthly_Budget = 1 AND Goal_ID IN (SELECT Goal_ID FROM sets WHERE User_ID = %s)", (user_id,))
-        budget_goal = cursor.fetchone()["Goal_Target"]
-        
-        cursor = db.cursor(dictionary=True)
-        cursor.execute("SELECT Transaction_Amount FROM transactions WHERE Transaction_ID IN (SELECT Transaction_ID FROM makes WHERE User_ID = %s)", (user_id,))
-        transactions = cursor.fetchall()
-        for transaction in transactions:
-            total_spent = total_spent + transaction["Transaction_Amount"]
-            
-        remaining = float(budget_goal) - float(total_spent)
-        
-        total_balance = "{:.2f}".format(total_balance)
-        budget_goal = "{:.2f}".format(float(budget_goal))
-        total_spent = "{:.2f}".format(float(total_spent))
-        remaining = "{:.2f}".format(float(remaining))
-        
-        return render_template('dashboard.html', user_name=user_name, balance=total_balance, budget=budget_goal, spent=total_spent, remaining=remaining)
-    else:
+    user_id = session.get('user_id')
+    if not user_id:
         return redirect(url_for('login'))
-    
+
+    user_name = session.get('user_name', 'User')
+    total_balance = 0.0
+    total_spent = 0.0
+    budget_goal = 0.0
+    remaining = 0.0
+
+    today = datetime.date.today()
+    view_type = request.form.get('time_view', 'month')
+    time_offset = int(request.form.get('time_offset', 0))
+
+    start_date_dt = None
+    end_date_dt = None
+    month_year_string = ""
+    start_date_str = ''
+    end_date_str = ''
+
+    try:
+        if view_type == 'month':
+            target_month_date = today + relativedelta(months=time_offset)
+            start_date_dt = target_month_date.replace(day=1)
+            end_date_dt = (start_date_dt + relativedelta(months=1)) - relativedelta(days=1)
+            month_year_string = start_date_dt.strftime("%B %Y")
+        elif view_type == 'week':
+            target_date = today + relativedelta(weeks=time_offset)
+            start_date_dt = target_date - relativedelta(days=target_date.weekday()) # Monday start
+            end_date_dt = start_date_dt + relativedelta(days=6)
+            month_year_string = f"{start_date_dt.strftime('%b %d')} - {end_date_dt.strftime('%b %d, %Y')}"
+        elif view_type == 'year':
+            target_year = today.year + time_offset
+            start_date_dt = datetime.date(target_year, 1, 1)
+            end_date_dt = datetime.date(target_year, 12, 31)
+            month_year_string = str(target_year)
+        else: # Default to month
+             view_type = 'month'
+             target_month_date = today + relativedelta(months=time_offset)
+             start_date_dt = target_month_date.replace(day=1)
+             end_date_dt = (start_date_dt + relativedelta(months=1)) - relativedelta(days=1)
+             month_year_string = start_date_dt.strftime("%B %Y")
+
+        if start_date_dt and end_date_dt:
+            start_date_str = start_date_dt.strftime('%Y-%m-%d')
+            end_date_str = end_date_dt.strftime('%Y-%m-%d')
+        else:
+            raise ValueError("Could not determine date range")
+
+
+        with get_db_connection() as db:
+            cursor = db.cursor(dictionary=True, buffered=True) # Buffered might help with multiple queries
+
+            cursor.execute("SELECT SUM(Account_Balance) as total_balance FROM accounts JOIN has USING (Account_ID) WHERE User_ID = %s", (user_id,))
+            balance_result = cursor.fetchone()
+            if balance_result and balance_result['total_balance'] is not None:
+                total_balance = float(balance_result['total_balance'])
+
+            cursor.execute("SELECT Goal_Target FROM goals WHERE Monthly_Budget = 1 AND Goal_ID IN (SELECT Goal_ID FROM sets WHERE User_ID = %s)", (user_id,))
+            budget_result = cursor.fetchone()
+            monthly_budget_goal = 0.0
+            if budget_result and budget_result['Goal_Target'] is not None:
+                monthly_budget_goal = float(budget_result['Goal_Target'])
+
+            cursor.execute("""
+                SELECT SUM(Transaction_Amount) as total_spent
+                FROM transactions
+                JOIN makes USING (Transaction_ID)
+                WHERE User_ID = %s AND Transaction_Date BETWEEN %s AND %s
+            """, (user_id, start_date_str, end_date_str))
+
+            spent_result = cursor.fetchone()
+            if spent_result and spent_result['total_spent'] is not None:
+                total_spent = float(spent_result['total_spent'])
+
+            cursor.close()
+
+        if view_type == 'year':
+            budget_goal = monthly_budget_goal * 12
+        elif view_type == 'week':
+            budget_goal = monthly_budget_goal / 4.33 # Average weeks per month
+        else: # Month
+            budget_goal = monthly_budget_goal
+
+        remaining = max(0.0, budget_goal - total_spent)
+
+    except Exception as e:
+        print(f"Error calculating dashboard data: {e}")
+        flash('Could not load dashboard data.', 'error')
+
+    # Load categories for the filter dropdown
+    filter_categories = load_categories(user_id)
+
+    return render_template('dashboard.html',
+                           user_name=user_name,
+                           balance=f"{total_balance:.2f}",
+                           budget=f"{budget_goal:.2f}",
+                           spent=f"{total_spent:.2f}",
+                           remaining=f"{remaining:.2f}",
+                           month_year=month_year_string,
+                           selected_view=view_type,
+                           time_offset=time_offset,
+                           start_date=start_date_str,
+                           end_date=end_date_str,
+                           filter_categories=filter_categories # Pass categories to template
+                           )
+
 def logged_in():
     return 'user_id' in session
 
-def check_setup_complete():
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM has WHERE User_ID = %s", (session['user_id'],))
-    account = cursor.fetchone()
-    if account:
-        return True
-    return False
+def check_setup_complete(user_id):
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor(dictionary=True)
+            cursor.execute("SELECT 1 FROM has WHERE User_ID = %s LIMIT 1", (user_id,))
+            has_account = cursor.fetchone()
+            cursor.execute("SELECT 1 FROM goals g JOIN sets s USING(Goal_ID) WHERE s.User_ID = %s AND g.Monthly_Budget = 1 LIMIT 1", (user_id,))
+            has_budget_goal = cursor.fetchone()
+            cursor.close()
+            return bool(has_account and has_budget_goal)
+    except Exception as e:
+        print(f"Error checking setup status for user {user_id}: {e}")
+        return False
 
-app.run(debug=True, host=os.getenv("FLASK_HOST"), port=int(os.getenv("FLASK_PORT")))
+
+def create_budget_pie_chart(current_spent, budget_total):
+    fig = None
+    try:
+        current_spent_f = max(0, float(current_spent))
+        budget_total_f = max(0.01, float(budget_total))
+
+        fig, ax = plt.subplots(figsize=(5, 5), dpi=90) # Compact size
+        ax.set_title('Spending vs Budget', fontsize=14, pad=15, weight='bold')
+
+        if current_spent_f == 0 and budget_total_f <= 0.01:
+             plt.close(fig)
+             return create_message_image("No Budget or\nSpending Data", width=5, height=5, dpi=90)
+
+        if current_spent_f > budget_total_f:
+            overspent_amount = current_spent_f - budget_total_f
+            labels = [f'Budget (${budget_total_f:.2f})']
+            sizes = [1] # Single wedge representing the budget itself
+            colors = ['#dc3545']
+            pie_labels = [f'Budget Used (${budget_total_f:.2f})']
+            ax.text(0, 0, f"Overspent!\n+${overspent_amount:.2f}",
+                    ha='center', va='center', fontsize=14, weight='bold', color='#dc3545')
+        elif current_spent_f == 0 and budget_total_f > 0:
+            labels = [f'Budget Remaining (${budget_total_f:.2f})']
+            sizes = [1]
+            colors = ['#28a745']
+            pie_labels = labels
+        else:
+            remaining = budget_total_f - current_spent_f
+            labels = [f'Spent (${current_spent_f:.2f})', f'Remaining (${remaining:.2f})']
+            sizes = [current_spent_f, remaining]
+            colors = ['#dc3545', '#28a745']
+            pie_labels = labels
+
+
+        if sizes and sum(sizes) > 0:
+             wedges, texts = ax.pie(
+                sizes,
+                explode=(0.05,) * len(sizes) if len(sizes) > 1 else None, # Only explode if multiple segments
+                labels=None,
+                colors=colors,
+                autopct=None,
+                shadow=False,
+                startangle=90,
+                wedgeprops=dict(width=0.4, edgecolor='w')
+            )
+
+             ax.legend(wedges, pie_labels,
+                      loc='upper center',
+                      bbox_to_anchor=(0.5, -0.05), # Position legend below
+                      fontsize='12', # Large font
+                      frameon=False,
+                      ncol=1)
+        else:
+             ax.text(0.5, 0.5, "No Data", ha='center', va='center', transform=ax.transAxes, fontsize=14, color='#cccccc')
+
+        ax.axis('equal')
+        fig.tight_layout(rect=[0, 0.05, 1, 1]) # Adjust layout slightly for legend
+
+        buffer = io.BytesIO()
+        fig.savefig(buffer, format='png', transparent=True) # Removed bbox_inches
+        buffer.seek(0)
+        plt.close(fig)
+
+        base64_str = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        return f'data:image/png;base64,{base64_str}'
+
+    except Exception as e:
+        print(f"Error creating budget pie chart: {e}")
+        if fig: plt.close(fig)
+        return create_message_image("Error loading\nbudget chart", width=5, height=5, dpi=90)
+
+
+@app.route('/api/pie-chart')
+def get_pie_chart_data_api():
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    view = request.args.get('view', 'month')
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+
+    if not start_date_str or not end_date_str:
+        return jsonify({"error": "Missing start or end date"}), 400
+
+    total_spent = 0.0
+    budget_goal = 0.0
+    monthly_budget_goal = 0.0
+
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor(dictionary=True)
+
+            cursor.execute("""
+                SELECT SUM(Transaction_Amount) AS total
+                FROM transactions JOIN makes USING (Transaction_ID)
+                WHERE User_ID = %s AND Transaction_Date BETWEEN %s AND %s
+            """, (user_id, start_date_str, end_date_str))
+            spent_result = cursor.fetchone()
+            total_spent = float(spent_result['total'] or 0.0)
+
+
+            cursor.execute("SELECT Goal_Target FROM goals WHERE Monthly_Budget = 1 AND Goal_ID IN (SELECT Goal_ID FROM sets WHERE User_ID = %s)", (user_id,))
+            budget_result = cursor.fetchone()
+            monthly_budget_goal = float(budget_result['Goal_Target'] or 0.0)
+
+            cursor.close()
+
+        if view == 'year':
+            budget_goal = monthly_budget_goal * 12
+        elif view == 'week':
+             budget_goal = monthly_budget_goal / 4.33
+        else:
+            budget_goal = monthly_budget_goal
+
+        chart_uri = create_budget_pie_chart(total_spent, budget_goal)
+        if chart_uri:
+            return jsonify({"chart_uri": chart_uri})
+        else:
+            return jsonify({"error": "Chart generation failed"}), 500
+
+    except Exception as e:
+        print(f"Error in pie chart API: {e}")
+        return jsonify({"error": f"Internal server error: {e}", "chart_uri": create_message_image("API Error", width=5, height=5, dpi=90)}), 500
+
+
+def create_line_chart_for_categories(user_id, start_date, end_date):
+    fig = None
+    try:
+        start_dt = datetime.datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_dt = datetime.datetime.strptime(end_date, '%Y-%m-%d').date()
+        date_range_days = (end_dt - start_dt).days + 1
+
+        with get_db_connection() as db:
+            cursor = db.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT c.Category_Name, t.Transaction_Date, SUM(t.Transaction_Amount) AS Daily_Amount
+                FROM transactions t JOIN falls_under fu ON t.Transaction_ID = fu.Transaction_ID JOIN categories c ON fu.Category_ID = c.Category_ID JOIN makes m ON t.Transaction_ID = m.Transaction_ID
+                WHERE m.User_ID = %s AND t.Transaction_Date BETWEEN %s AND %s
+                GROUP BY c.Category_Name, t.Transaction_Date ORDER BY t.Transaction_Date, c.Category_Name
+            """, (user_id, start_date, end_date))
+            transactions = cursor.fetchall()
+            cursor.close()
+
+        fig, ax = plt.subplots(figsize=(7, 4), dpi=96) # Adjusted size
+
+        if not transactions:
+             plt.close(fig)
+             return create_message_image("No spending data in this period.", width=7, height=4, dpi=96)
+
+        df = pd.DataFrame(transactions)
+        df['Transaction_Date'] = pd.to_datetime(df['Transaction_Date']).dt.date
+        df['Daily_Amount'] = df['Daily_Amount'].astype(float)
+        pivot_df = df.pivot_table(index='Transaction_Date', columns='Category_Name', values='Daily_Amount', fill_value=0)
+        all_dates = pd.date_range(start=start_dt, end=end_dt, freq='D').date
+        pivot_df = pivot_df.reindex(all_dates, fill_value=0)
+        colors = plt.cm.tab10.colors
+        categories = pivot_df.columns
+
+        for i, category in enumerate(categories):
+            color = colors[i % len(colors)]
+            total_spend = pivot_df[category].sum()
+            if total_spend > 0:
+                ax.plot(pivot_df.index, pivot_df[category], marker='.', markersize=4, # Smaller markers
+                       linestyle='-', linewidth=1.2, # Thinner lines
+                       label=f"{category} (${total_spend:.2f})", color=color)
+
+        ax.set_xlabel('Date', fontsize=10)
+        ax.set_ylabel('Spending ($)', fontsize=10)
+        ax.set_title('Daily Spending by Category', fontsize=12, fontweight='bold') # Smaller title
+
+        if date_range_days <= 10: locator, formatter = mdates.DayLocator(), mdates.DateFormatter('%a %d')
+        elif date_range_days <= 60: locator, formatter = mdates.DayLocator(interval=max(1, date_range_days // 7)), mdates.DateFormatter('%b %d')
+        elif date_range_days <= 730: locator, formatter = mdates.MonthLocator(), mdates.DateFormatter('%b %y') # Short year
+        else: locator, formatter = mdates.YearLocator(), mdates.DateFormatter('%Y')
+
+        ax.xaxis.set_major_locator(locator)
+        ax.xaxis.set_major_formatter(formatter)
+        fig.autofmt_xdate(rotation=30, ha='right')
+        ax.tick_params(axis='both', which='major', labelsize=9) # Smaller ticks
+
+        if len(categories) > 0:
+             # Always place legend outside for this constrained size
+             ax.legend(loc='upper left', bbox_to_anchor=(1.01, 1), borderaxespad=0., fontsize=8.5) # Smaller legend outside
+
+        ax.grid(True, alpha=0.3, linestyle=':') # Dotted grid
+        ax.set_ylim(bottom=0)
+        fig.tight_layout(rect=[0, 0, 0.88, 1]) # Adjust right margin for external legend
+
+        buffer = io.BytesIO()
+        fig.savefig(buffer, format='png', dpi=96)
+        buffer.seek(0)
+        plt.close(fig)
+        base64_str = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        return f'data:image/png;base64,{base64_str}'
+
+    except Exception as e:
+        print(f"Error creating line chart: {str(e)}")
+        if fig: plt.close(fig)
+        return create_message_image("Error loading category spending chart", width=7, height=4, dpi=96)
+
+
+@app.route('/api/line-chart')
+def get_line_chart_data_api():
+    user_id = session.get('user_id')
+    if not user_id: return jsonify({"error": "Not authenticated"}), 401
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    if not start_date or not end_date: return jsonify({"error": "Missing start or end date"}), 400
+    try:
+        chart_uri = create_line_chart_for_categories(user_id, start_date, end_date)
+        return jsonify({"chart_uri": chart_uri})
+    except Exception as e:
+        print(f"Error in line chart API: {e}")
+        return jsonify({"error": f"Internal server error: {e}", "chart_uri": create_message_image("API Error", width=7, height=4, dpi=96)}), 500
+
+
+def create_category_spending_pie_chart(user_id, start_date, end_date):
+    fig = None
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT c.Category_Name, SUM(t.Transaction_Amount) AS Total_Amount
+                FROM transactions t JOIN falls_under fu ON t.Transaction_ID = fu.Transaction_ID JOIN categories c ON fu.Category_ID = c.Category_ID JOIN makes m ON t.Transaction_ID = m.Transaction_ID
+                WHERE m.User_ID = %s AND t.Transaction_Date BETWEEN %s AND %s
+                GROUP BY c.Category_Name HAVING Total_Amount > 0 ORDER BY Total_Amount DESC
+            """, (user_id, start_date, end_date))
+            category_spending = cursor.fetchall()
+            cursor.close()
+
+        fig, ax = plt.subplots(figsize=(5, 5), dpi=90) # Compact size
+        ax.set_title('Spending by Category', fontsize=14, pad=15, weight='bold')
+
+        if not category_spending:
+            plt.close(fig)
+            return create_message_image("No Spending Data\nfor Categories", width=5, height=5, dpi=90)
+
+        labels = [f"{item['Category_Name']} (${float(item['Total_Amount']):.2f})" for item in category_spending]
+        sizes = [float(item['Total_Amount']) for item in category_spending]
+        colors = plt.cm.viridis(np.linspace(0.1, 0.9, len(sizes))) # Use viridis, avoid extremes
+
+        wedges, texts = ax.pie(
+            sizes, labels=None, colors=colors, autopct=None, shadow=False, startangle=90,
+            wedgeprops=dict(width=0.4, edgecolor='w')
+        )
+
+        ax.legend(wedges, labels, loc='upper center', bbox_to_anchor=(0.5, -0.05), # Position legend below
+                  fontsize='12', frameon=False, ncol=1) # Large font
+        ax.axis('equal')
+        fig.tight_layout(rect=[0, 0.05, 1, 1]) # Adjust layout
+
+        buffer = io.BytesIO()
+        fig.savefig(buffer, format='png', transparent=True)
+        buffer.seek(0)
+        plt.close(fig)
+        base64_str = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        return f'data:image/png;base64,{base64_str}'
+
+    except Exception as e:
+        print(f"Error creating category spending pie chart: {e}")
+        if fig: plt.close(fig)
+        return create_message_image("Error loading\ncategory pie chart", width=5, height=5, dpi=90)
+
+
+@app.route('/api/category-pie-chart')
+def get_category_pie_chart_api():
+    user_id = session.get('user_id')
+    if not user_id: return jsonify({"error": "Not authenticated"}), 401
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    if not start_date or not end_date: return jsonify({"error": "Missing start or end date"}), 400
+    try:
+        chart_uri = create_category_spending_pie_chart(user_id, start_date, end_date)
+        return jsonify({"chart_uri": chart_uri})
+    except Exception as e:
+        print(f"Error in category pie chart API: {e}")
+        return jsonify({"error": f"Internal server error: {e}", "chart_uri": create_message_image("API Error", width=5, height=5, dpi=90)}), 500
+
+
+def get_prediction_data(user_id, view_type, current_start_date_str):
+    num_historical_periods = 0
+    period_delta = None
+    period_name = ""
+    period_format_label = lambda d: d.strftime('%Y-%m-%d')
+
+    current_start_date = datetime.datetime.strptime(current_start_date_str, '%Y-%m-%d').date()
+
+    if view_type == 'week': num_historical_periods, period_delta, period_name, period_format_label = 8, relativedelta(weeks=1), "Week", lambda d: f"W {d.strftime('%U')}"
+    elif view_type == 'month': num_historical_periods, period_delta, period_name, period_format_label = 12, relativedelta(months=1), "Month", lambda d: d.strftime('%b %y')
+    elif view_type == 'year': num_historical_periods, period_delta, period_name, period_format_label = 5, relativedelta(years=1), "Year", lambda d: d.strftime('%Y')
+    else: return None, "Invalid view type for prediction."
+
+    historical_data = []
+    analysis_text = f"**Prediction Analysis ({period_name}ly Trend)**\n\n"
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor(dictionary=True)
+            period_labels = []
+            period_amounts = []
+            for i in range(num_historical_periods, 0, -1):
+                hist_end_date = current_start_date - (period_delta * (i-1)) - relativedelta(days=1)
+                hist_start_date = current_start_date - (period_delta * i)
+                period_label = period_format_label(hist_start_date)
+                period_labels.append(period_label)
+                cursor.execute(""" SELECT SUM(Transaction_Amount) as total_spent FROM transactions JOIN makes USING (Transaction_ID) WHERE User_ID = %s AND Transaction_Date BETWEEN %s AND %s """, (user_id, hist_start_date.strftime('%Y-%m-%d'), hist_end_date.strftime('%Y-%m-%d')))
+                result = cursor.fetchone()
+                amount = float(result['total_spent'] or 0.0)
+                historical_data.append({'period_label': period_label, 'amount': amount})
+                period_amounts.append(amount)
+            cursor.close()
+
+        if len(period_amounts) < 3: return None, f"Not enough historical data (need at least 3 {period_name.lower()}s)."
+
+        df = pd.DataFrame({'period_index': range(num_historical_periods), 'amount': period_amounts})
+        X = df[['period_index']]
+        y = df['amount']
+        model = LinearRegression()
+        model.fit(X, y)
+        prediction = max(0, model.predict(np.array([[num_historical_periods]]))[0])
+        prediction_data = {'period_label': f"Next {period_name}", 'amount': prediction}
+
+        avg_historical = np.mean(period_amounts)
+        std_dev_historical = np.std(period_amounts) if len(period_amounts) > 1 else 0
+        last_period_amount = period_amounts[-1]
+        trend = model.coef_[0]
+        pred_diff = prediction - last_period_amount
+        pred_diff_perc = (pred_diff / (last_period_amount + 0.01)) * 100 if last_period_amount else (100 if prediction > 0 else 0)
+
+        analysis_text += f"*   **Historical Average:** ${avg_historical:.2f} per {period_name.lower()} (Std Dev: ${std_dev_historical:.2f}).\n"
+        analysis_text += f"*   **Last Period's Spending:** ${last_period_amount:.2f}.\n"
+        analysis_text += f"*   **Linear Trend:** Spending changed by approx. **${trend:+.2f}** per {period_name.lower()}. "
+        analysis_text += f"{'Suggests increase.' if trend > 0.01 else ('Suggests decrease.' if trend < -0.01 else 'Relatively stable.')}\n"
+        analysis_text += f"*   **Prediction for Next {period_name}:** **${prediction:.2f}**. Change of ${pred_diff:+.2f} ({pred_diff_perc:+.1f}%).\n\n"
+        analysis_text += f"*Note: Simple linear prediction. Actual results may vary.*"
+
+        return {'historical': historical_data, 'prediction': prediction_data}, analysis_text
+
+    except Exception as e:
+        print(f"Error during prediction data retrieval: {e}")
+        return None, "Could not generate prediction data due to an error."
+
+
+def create_prediction_line_chart(prediction_result):
+    fig = None
+    if not prediction_result or 'historical' not in prediction_result or 'prediction' not in prediction_result:
+        return create_message_image("Not enough data\nfor prediction chart.", width=7, height=4, dpi=96)
+
+    historical = prediction_result['historical']
+    prediction = prediction_result['prediction']
+    if not historical: return create_message_image("No historical data\nfor prediction.", width=7, height=4, dpi=96)
+
+    try:
+        fig, ax = plt.subplots(figsize=(7, 4), dpi=96) # Adjusted size
+
+        hist_labels = [h['period_label'] for h in historical]
+        hist_amounts = [h['amount'] for h in historical]
+        hist_indices = range(len(historical))
+
+        ax.plot(hist_indices, hist_amounts, marker='o', markersize=5, linestyle='-', color='royalblue', label='Historical Spending')
+
+        pred_index = len(historical)
+        pred_amount = prediction['amount']
+        pred_label = prediction['period_label']
+
+        ax.plot(pred_index, pred_amount, marker='*', markersize=12, color='orangered', linestyle='none', label=f'Predicted: ${pred_amount:.2f}')
+        ax.plot([hist_indices[-1], pred_index], [hist_amounts[-1], pred_amount], linestyle=':', color='grey', alpha=0.7)
+
+        all_labels = hist_labels + [pred_label]
+        all_indices = list(hist_indices) + [pred_index]
+
+        ax.set_xticks(all_indices)
+        ax.set_xticklabels(all_labels, rotation=30, ha='right', fontsize=9) # Smaller labels
+
+        ax.set_ylabel('Spending ($)', fontsize=10)
+        ax.set_title('Spending Trend and Prediction', fontsize=12, fontweight='bold') # Smaller title
+        ax.legend(fontsize=9) # Smaller legend
+        ax.grid(True, alpha=0.3, linestyle=':')
+        ax.set_ylim(bottom=0)
+        ax.tick_params(axis='y', labelsize=10)
+
+        fig.tight_layout()
+
+        buffer = io.BytesIO()
+        fig.savefig(buffer, format='png', dpi=96)
+        buffer.seek(0)
+        plt.close(fig)
+        base64_str = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        return f'data:image/png;base64,{base64_str}'
+
+    except Exception as e:
+        print(f"Error creating prediction line chart: {e}")
+        if fig: plt.close(fig)
+        return create_message_image("Error generating\nprediction chart.", width=7, height=4, dpi=96)
+
+
+@app.route('/api/prediction-chart')
+def get_prediction_chart_api():
+    user_id = session.get('user_id')
+    if not user_id: return jsonify({"error": "Not authenticated"}), 401
+    view_type = request.args.get('view')
+    start_date_str = request.args.get('start_date')
+    if not view_type or not start_date_str: return jsonify({"error": "Missing view type or start date"}), 400
+    try:
+        prediction_data, _ = get_prediction_data(user_id, view_type, start_date_str)
+        chart_uri = create_prediction_line_chart(prediction_data)
+        return jsonify({"chart_uri": chart_uri})
+    except Exception as e:
+        print(f"Error in prediction chart API: {e}")
+        return jsonify({"error": f"Internal server error: {e}", "chart_uri": create_message_image("API Error", width=7, height=4, dpi=96)}), 500
+
+
+@app.route('/api/spending-prediction')
+def get_spending_prediction_api():
+    user_id = session.get('user_id')
+    if not user_id: return jsonify({"error": "Not authenticated"}), 401
+    view_type = request.args.get('view')
+    start_date_str = request.args.get('start_date')
+    if not view_type or not start_date_str: return jsonify({"error": "Missing view type or start date"}), 400
+    try:
+        _, analysis_text = get_prediction_data(user_id, view_type, start_date_str)
+        return jsonify({"analysis_text": analysis_text})
+    except Exception as e:
+        print(f"Error in prediction analysis API: {e}")
+        return jsonify({"analysis_text": f"Error loading analysis: {e}"}), 500
+
+
+def get_data_for_chatbot(user_id, start_date, end_date, limit=5):
+    context_data = {}
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor(dictionary=True)
+            cursor.execute("""SELECT SUM(Transaction_Amount) as total_spent, COUNT(*) as transaction_count FROM transactions JOIN makes USING (Transaction_ID) WHERE User_ID = %s AND Transaction_Date BETWEEN %s AND %s """, (user_id, start_date, end_date))
+            summary = cursor.fetchone()
+            context_data['total_spent'] = float(summary['total_spent'] or 0.0)
+            context_data['transaction_count'] = int(summary['transaction_count'] or 0)
+            cursor.execute("""SELECT Goal_Target FROM goals WHERE Monthly_Budget = 1 AND Goal_ID IN (SELECT Goal_ID FROM sets WHERE User_ID = %s)""", (user_id,))
+            budget_result = cursor.fetchone()
+            context_data['monthly_budget_goal'] = float(budget_result['Goal_Target'] or 0.0)
+            cursor.execute(""" SELECT c.Category_Name, SUM(t.Transaction_Amount) AS Amount, COUNT(*) as Count FROM transactions t JOIN falls_under fu ON t.Transaction_ID = fu.Transaction_ID JOIN categories c ON fu.Category_ID = c.Category_ID JOIN makes m ON t.Transaction_ID = m.Transaction_ID WHERE m.User_ID = %s AND t.Transaction_Date BETWEEN %s AND %s GROUP BY c.Category_Name HAVING Amount > 0 ORDER BY Amount DESC """, (user_id, start_date, end_date))
+            categories = cursor.fetchall()
+            context_data['category_spending'] = { c['Category_Name']: {'total': float(c['Amount']), 'count': int(c['Count'])} for c in categories }
+            cursor.execute(""" SELECT t.Transaction_Date, t.Transaction_Description, t.Transaction_Amount, c.Category_Name FROM transactions t JOIN falls_under fu ON t.Transaction_ID = fu.Transaction_ID JOIN categories c ON fu.Category_ID = c.Category_ID JOIN makes m ON t.Transaction_ID = m.Transaction_ID WHERE m.User_ID = %s AND t.Transaction_Date BETWEEN %s AND %s ORDER BY t.Transaction_Amount DESC LIMIT %s """, (user_id, start_date, end_date, limit))
+            top_transactions = cursor.fetchall()
+            context_data['top_transactions'] = [ {'date': t['Transaction_Date'].strftime('%Y-%m-%d'), 'desc': t['Transaction_Description'], 'amount': float(t['Transaction_Amount']), 'category': t['Category_Name']} for t in top_transactions ]
+            cursor.close()
+        return context_data
+    except Exception as e:
+        print(f"Error fetching data for chatbot context: {e}")
+        return {"error": "Could not retrieve detailed data for analysis."}
+
+
+@app.route('/api/chatbot', methods=['POST'])
+def chatbot_api():
+    user_id = session.get('user_id')
+    if not user_id or not gemini_model: return jsonify({"error": "Chatbot unavailable or user not authenticated"}), 403
+
+    data = request.json
+    user_prompt = data.get('prompt')
+    start_date = data.get('start_date')
+    end_date = data.get('end_date')
+    view_type = data.get('view_type')
+    if not user_prompt or not start_date or not end_date or not view_type: return jsonify({"error": "Missing required data"}), 400
+
+    period_data = get_data_for_chatbot(user_id, start_date, end_date)
+    if "error" in period_data: return jsonify({"response": period_data["error"]})
+
+    period_budget = period_data['monthly_budget_goal']
+    period_name = f"{start_date} to {end_date}"
+    if view_type == 'year': period_budget *= 12; period_name = f"the year starting {start_date}"
+    elif view_type == 'week': period_budget /= 4.33; period_name = f"the week of {start_date}"
+    elif view_type == 'month': period_name = f"the month starting {start_date}"
+
+    system_instruction = f""" You are a friendly financial analysis assistant. Analyze the user's spending for {period_name}. Be concise and focus ONLY on the provided data summary. Do not make up info.
+
+Data Summary:
+Total Spent: ${period_data['total_spent']:.2f} ({period_data['transaction_count']} transactions)
+Period Budget: ${period_budget:.2f} (approx.)
+Spending by Category (Total, Count): {json.dumps(period_data['category_spending'], indent=1)}
+Top 5 Largest Transactions: {json.dumps(period_data['top_transactions'], indent=1)}
+
+User's question: "{user_prompt}"
+
+Answer based ONLY on the summary. If details aren't present (e.g., specific transaction not in top 5), state that but offer analysis based on available data. """
+
+    try:
+        response = gemini_model.generate_content(system_instruction)
+        bot_response = ""
+        if response.parts: bot_response = "".join(part.text for part in response.parts).strip()
+        elif response.prompt_feedback and response.prompt_feedback.block_reason: bot_response = f"Blocked: {response.prompt_feedback.block_reason}"
+        else: bot_response = "Sorry, empty response."
+        return jsonify({"response": bot_response})
+    except Exception as e:
+        print(f"Error generating response from Gemini: {e}")
+        error_detail = str(e)
+        return jsonify({"response": f"Sorry, error generating analysis."}), 500
+
+# --- New API Endpoint for Transactions ---
+@app.route('/api/transactions')
+def get_transactions_api():
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    # Get filter parameters from query string
+    filter_category = request.args.get('category', None)
+    filter_start_date = request.args.get('start_date', None)
+    filter_end_date = request.args.get('end_date', None)
+    filter_description = request.args.get('description', None)
+
+    # Build the WHERE clause dynamically
+    where_clauses = ["m.User_ID = %s"]
+    params = [user_id]
+
+    if filter_category:
+        where_clauses.append("c.Category_Name = %s")
+        params.append(filter_category)
+    if filter_start_date:
+        where_clauses.append("t.Transaction_Date >= %s")
+        params.append(filter_start_date)
+    if filter_end_date:
+        where_clauses.append("t.Transaction_Date <= %s")
+        params.append(filter_end_date)
+    if filter_description:
+        # Use LIKE for partial matching, escape wildcard characters
+        where_clauses.append("t.Transaction_Description LIKE %s")
+        params.append(f"%{filter_description}%")
+
+    sql_where = " AND ".join(where_clauses)
+
+    query = f"""
+        SELECT
+            t.Transaction_ID, t.Transaction_Date, t.Transaction_Description,
+            t.Transaction_Amount, c.Category_Name, a.Account_Name
+        FROM transactions t
+        JOIN makes m ON t.Transaction_ID = m.Transaction_ID
+        LEFT JOIN falls_under fu ON t.Transaction_ID = fu.Transaction_ID
+        LEFT JOIN categories c ON fu.Category_ID = c.Category_ID
+        LEFT JOIN made_on mo ON t.Transaction_ID = mo.Transaction_ID
+        LEFT JOIN accounts a ON mo.Account_ID = a.Account_ID
+        WHERE {sql_where}
+        ORDER BY t.Transaction_Date DESC, t.Transaction_ID DESC
+    """
+
+    transactions = []
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor(dictionary=True)
+            cursor.execute(query, params)
+            transactions = cursor.fetchall()
+            # Convert date objects to strings for JSON serialization
+            for t in transactions:
+                if isinstance(t['Transaction_Date'], datetime.date):
+                    t['Transaction_Date'] = t['Transaction_Date'].strftime('%Y-%m-%d')
+            cursor.close()
+        # Use the custom DecimalEncoder implicitly via app.json_encoder
+        return jsonify(transactions)
+    except Exception as e:
+        print(f"Error fetching transactions: {e}")
+        return jsonify({"error": "Failed to load transactions"}), 500
+
+
+if __name__ == '__main__':
+     app.run(debug=True, host=os.getenv("FLASK_HOST", "127.0.0.1"), port=int(os.getenv("FLASK_PORT", 5000)))
