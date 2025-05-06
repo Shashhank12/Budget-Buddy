@@ -5,254 +5,51 @@
     <title>Budget Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <style>
-        :root {
-             --chat-popup-width: 380px;
-             --chat-popup-height: 500px;
-             --chat-fab-size: 55px;
-             --navbar-height: 65px; /* Standard Bootstrap navbar height */
-             --content-padding: 30px;
-        }
-        html, body {
-             height: 100%;
-             overflow: hidden; /* Prevent body scrollbars */
-             font-size: 15px; /* Base font size */
-        }
-        body {
-            background-color: #f0f8ff;
-            display: flex;
-            flex-direction: column;
-            padding-bottom: 0; /* Remove bottom padding */
-        }
-        .navbar {
-            background-color: #0d6efd !important;
-            color: white;
-            flex-shrink: 0;
-            height: var(--navbar-height);
-        }
-        .navbar-brand, .navbar span, .navbar button {
-            color: white !important;
-        }
-
-        .main-row {
-            flex-grow: 1; /* Allow row to fill remaining height */
-            overflow: hidden; /* Prevent row overflow */
-            height: calc(100vh - var(--navbar-height)); /* Full height minus navbar */
-        }
-
-        .sidebar {
-            background-color: #e7f1ff;
-            padding: 25px; /* Reduced padding */
-            overflow-y: auto; /* Allow sidebar scrolling IF content overflows */
-            height: 100%; /* Fill parent row height */
-            display: flex;
-            flex-direction: column;
-            max-width: 80%;
-        }
-        .content-area {
-            padding: var(--content-padding);
-            background-color: #ffffff;
-            overflow-y: hidden; /* Content area itself should NOT scroll, inner divs will */
-            height: 100%; /* Fill parent row height */
-            display: flex;
-            flex-direction: column;
-        }
-
-         /* Chart Grid */
-        .chart-grid {
-             display: grid;
-             grid-template-columns: 1fr 1fr; /* Two equal columns */
-             grid-template-rows: auto auto; /* Adjust height based on content */
-             gap: 20px; /* Space between grid items */
-             flex-shrink: 0; /* Prevent shrinking */
-             margin-bottom: 20px;
-        }
-        .chart-grid-item {
-             border: 1px solid #c0dfff;
-             border-radius: 10px;
-             background: #f8fbff;
-             padding: 15px;
-             position: relative;
-             display: flex; /* Use flex to center content */
-             flex-direction: column;
-             justify-content: center; /* Center vertically */
-             align-items: center; /* Center horizontally */
-             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-             overflow: hidden; /* Hide overflow */
-             min-height: 280px; /* Minimum height for charts */
-        }
-         .chart-grid-item img {
-             max-width: 100%;
-             max-height: 100%; /* Prevent image exceeding container */
-             height: auto; /* Maintain aspect ratio */
-             display: block;
-             opacity: 0;
-             transform: scale(0.98) translateY(10px);
-             transition: opacity 0.5s ease-out, transform 0.5s ease-out;
-         }
-         .chart-grid-item img.visible {
-             opacity: 1;
-             transform: scale(1) translateY(0);
-         }
-        #predictionAnalysisText {
-             font-size: 0.85rem; /* Smaller analysis text */
-             color: #333;
-             text-align: left;
-             white-space: pre-wrap;
-             width: 100%;
-             margin-top: 10px;
-             padding: 0 5px;
-             line-height: 1.5;
-             overflow-y: auto; /* Allow scrolling if text is long */
-             max-height: 100px; /* Limit text height */
-         }
-        #predictionAnalysisText strong { color: #0d6efd; }
-
-        .chart-container-sidebar {
-            border: 1px solid #c0dfff;
-            border-radius: 10px;
-            background: #f8fbff;
-            padding: 5px;
-            position: relative;
-            min-height: 200px; /* Slightly reduced */
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            margin-bottom: 15px;
-            max-width: 100%;
-            max-height: 110%;
-            flex-shrink: 0;
-            overflow: hidden;
-            margin-right: auto;
-        }
-        .chart-image-sidebar {
-            max-width: 100%;
-            margin-top: 15px;
-            max-height: 110%;
-            height: auto;
-            display: block;
-            opacity: 0;
-            transform: scale(0.9) translateY(10px);
-            transition: opacity 0.5s ease-out, transform 0.5s ease-out;
-        }
-        .chart-image-sidebar.visible { opacity: 1; transform: scale(1) translateY(0); }
-
-        .loading-indicator {
-             /* Styles remain the same */
-            display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: #555; background-color: rgba(248, 251, 255, 0.9); padding: 10px 15px;
-            border-radius: 5px; z-index: 10; font-size: 0.9rem; text-align: center;
-        }
-
-        /* Transaction Area */
-         .transaction-controls {
-             padding: 15px 0;
-             border-bottom: 1px solid #eee; /* Separator */
-             flex-shrink: 0; /* Prevent shrinking */
-             background-color: #fff; /* Ensure background */
-         }
-         .transaction-list-container {
-             flex-grow: 1; /* Take remaining vertical space */
-             overflow-y: auto; /* Enable scrolling for the list */
-             padding-top: 10px;
-         }
-         .transaction-table {
-             font-size: 0.9rem; /* Smaller font for table */
-         }
-          .transaction-table th {
-             position: sticky; /* Sticky headers */
-             top: 0;
-             background-color: #f8f9fa; /* Header background */
-             z-index: 1;
-         }
-         .transaction-table td {
-             vertical-align: middle;
-         }
-         .amount-positive { color: green; }
-         .amount-negative { color: red; }
-
-
-        /* Time controls etc. */
-        .time-controls .btn { min-width: 70px; font-size: 0.9rem; }
-        .form-select-sm { font-size: 0.9rem; }
-        .list-group-item { border: none; padding: 0.6rem 0; font-size: 1.1rem;}
-
-        /* Chatbot FAB and Popup Styles (remain mostly the same) */
-        #chat-fab { position: fixed; bottom: 20px; right: 20px; width: var(--chat-fab-size); height: var(--chat-fab-size); border-radius: 50%; background-color: #0d6efd; color: white; font-size: 1.5rem; display: flex; justify-content: center; align-items: center; border: none; box-shadow: 0 4px 8px rgba(0,0,0,0.2); cursor: pointer; z-index: 1050; transition: transform 0.2s ease-in-out; }
-        #chat-fab:hover { transform: scale(1.1); }
-        #chat-popup {
-            display: none;  /* Hidden by default */
-            position: fixed;
-            bottom: calc(var(--chat-fab-size) + 30px);
-            right: 20px;
-            width: var(--chat-popup-width);
-            max-height: var(--chat-popup-height);
-            background-color: white;
-            border: 1px solid #ccc;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-            z-index: 1040;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        
-        #chat-popup.show {
-            display: flex !important;  /* Force display when .show class is present */
-        }
-        .chat-header { background-color: #0d6efd; color: white; padding: 10px 15px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; border-top-left-radius: 9px; border-top-right-radius: 9px; flex-shrink: 0;}
-        .chat-header .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
-        .chat-body { padding: 15px; overflow-y: auto; flex-grow: 1; }
-        #chatHistory { list-style: none; padding: 0; margin: 0; }
-        #chatHistory li { margin-bottom: 10px; padding: 8px 12px; border-radius: 15px; max-width: 85%; word-wrap: break-word; line-height: 1.4; }
-        #chatHistory .user-message { background-color: #0d6efd; color: white; margin-left: auto; border-bottom-right-radius: 5px; text-align: left; }
-        #chatHistory .bot-message { background-color: #e9ecef; color: #333; margin-right: auto; border-bottom-left-radius: 5px; }
-        .chat-suggestions { margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee; }
-        .suggestion-btn { background: none; border: 1px solid #0d6efd; color: #0d6efd; padding: 4px 8px; margin: 3px; border-radius: 15px; font-size: 0.8rem; cursor: pointer; transition: background-color 0.2s, color 0.2s; }
-        .suggestion-btn:hover { background-color: #0d6efd; color: white; }
-        #chatLoadingIndicator { font-size: 0.85rem; color: #6c757d; margin-top: 5px; text-align: center; display: none; padding: 5px 0; }
-        .chat-footer { padding: 10px 15px; border-top: 1px solid #eee; display: flex; align-items: center; flex-shrink: 0; }
-        #chatInput { flex-grow: 1; margin-right: 10px; resize: none; height: 40px; padding: 8px 12px; }
-        #sendChatButton { flex-shrink: 0; }
-
-        /* Responsive Adjustments */
-        @media (max-width: 1200px) { /* Adjust breakpoint if needed */
-             .chart-grid { grid-template-columns: 1fr; } /* Stack charts on smaller screens */
-             .chart-grid-item { min-height: 250px; }
-             #predictionAnalysisText { max-height: none; } /* Allow more text height */
-        }
-        @media (max-width: 992px) { /* Medium screens */
-            .sidebar { display: none; } /* Hide sidebar */
-            .content-area { /* Take full width */ }
-             /* Maybe adjust FAB/Chat popup for tablets */
-             :root { --chat-popup-width: 350px; }
-        }
-         @media (max-width: 768px) { /* Small screens */
-             :root { --chat-popup-width: 90vw; --chat-popup-height: 70vh; }
-             #chat-fab { bottom: 15px; right: 15px; }
-             #chat-popup { right: 10px; bottom: calc(var(--chat-fab-size) + 25px); }
-             .content-area { padding: 15px; }
-             .chart-grid-item { min-height: 220px; padding: 10px;}
-             .transaction-controls { padding: 10px 0;}
-             .transaction-table { font-size: 0.85rem;}
-             body { overflow-y: auto; } /* Allow body scroll on small screens */
-             .main-row, .content-area { height: auto; overflow: visible;} /* Disable fixed height */
-
-         }
-         
-         #pieChartContainerSidebar {
-            margin-bottom: 30px;
-         }
-
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 </head>
 <body>
     <nav class="navbar navbar-expand-lg px-4">
-        <a class="navbar-brand fs-3 fw-bold" href="/">Budget Buddy</a>
-        <div class="ms-auto align-items: center">
-            <span class="me-3 mt-3">Hello, <strong>{{ user_name | default('User') }}</strong></span>
-            <button class="btn btn-outline-light btn-sm" onclick="window.location.href='{{ url_for('logout') }}'">Logout</button>
+        <a class="navbar-brand fs-3 fw-bold" href="{{ url_for('dashboard') }}">Budget Buddy</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav position-absolute start-50 translate-middle-x d-none d-lg-flex">
+                {% if 'user_id' in session %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == url_for('dashboard') %}active{% endif %}" {% if request.path == url_for('dashboard') %}aria-current="page"{% endif %} href="{{ url_for('dashboard') }}">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == url_for('manage_transaction') %}active{% endif %}" {% if request.path == url_for('manage_transaction') %}aria-current="page"{% endif %} href="{{ url_for('manage_transaction') }}">Transactions</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == url_for('category') %}active{% endif %}" {% if request.path == url_for('category') %}aria-current="page"{% endif %} href="{{ url_for('category') }}">Categories</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == url_for('manage_goals') %}active{% endif %}" {% if request.path == url_for('manage_goals') %}aria-current="page"{% endif %} href="{{ url_for('manage_goals') }}">Goals</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == url_for('manage_accounts') %}active{% endif %}" {% if request.path == url_for('manage_accounts') %}aria-current="page"{% endif %} href="{{ url_for('manage_accounts') }}">Accounts</a>
+                    </li>
+                {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == url_for('login') %}active{% endif %}" href="{{ url_for('login') }}">Login</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == url_for('register') %}active{% endif %}" href="{{ url_for('register') }}">Register</a>
+                    </li>
+                {% endif %}
+            </ul>    
+            {% if 'user_id' in session %}
+            <ul class="navbar-nav ms-auto align-items-center">
+                <li class="nav-item">
+                    <span class="navbar-text me-3">Hello, <strong>{{ user_name | default('User') }}</strong></span>
+                </li>
+                <li class="nav-item">
+                    <button class="btn btn-outline-light btn-sm" onclick="window.location.href='{{ url_for('logout') }}'">Logout</button>
+                </li>
+            </ul>
+            {% endif %}
         </div>
     </nav>
 
@@ -278,7 +75,7 @@
                 </div>
             </div>
 
-            <div class="col-lg-9 content-area">
+            <div class="col-lg-10 content-area">
                  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
                     <div class="d-flex align-items-center gap-2">
                         <label for="viewSelect" class="form-label mb-0 fw-semibold">View:</label>
@@ -303,75 +100,30 @@
                 </form>
 
                 <div class="chart-grid">
-                     <div class="chart-grid-item">
-                         <div id="lineChartCategoryLoading" class="loading-indicator">Loading...</div>
-                         <img id="lineChartCategory" src="" alt="Daily Spending by Category">
-                     </div>
-                     <div class="chart-grid-item">
-                         <div id="predictionChartLoading" class="loading-indicator">Loading...</div>
-                         <img id="predictionChart" src="" alt="Spending Trend and Prediction">
-                     </div>
-                     <div class="chart-grid-item" style="justify-content: flex-start; align-items: flex-start; padding: 10px; min-height: 120px;"> <!-- Analysis Text Area -->
-                         <h6 class="mb-2 fw-semibold text-primary w-100 text-center">Prediction Analysis</h6>
-                         <div id="predictionAnalysisLoading" class="loading-indicator" style="position: relative; display:block; transform: none; top:auto; left: auto; margin: 5px auto;">Loading...</div>
-                         <div id="predictionAnalysisText"></div>
-                     </div>
-                      <div class="chart-grid-item" style="justify-content: flex-start; align-items: center; padding: 15px; min-height: 120px;"> <!-- Quick Actions Area -->
-                         <h6 class="mb-3 fw-semibold text-primary">Quick Actions</h6>
-                         <div class="d-grid gap-2 col-8 mx-auto">
-                            <a href="{{ url_for('transaction') }}" class="btn btn-primary btn-sm">Record Transaction</a>
-                            <a href="{{ url_for('category') }}" class="btn btn-secondary btn-sm">Manage Categories</a>
-                        </div>
-                     </div>
-                </div>
-
-                <div class="transaction-controls mt-3">
-                    <h5 class="mb-3">Transactions</h5>
-                    <div class="row g-2 align-items-end">
-                         <div class="col-md-3">
-                             <label for="filterCategory" class="form-label form-label-sm">Category</label>
-                             <select id="filterCategory" class="form-select form-select-sm">
-                                 <option value="" selected>All Categories</option>
-                                 {% for cat in filter_categories %}
-                                 <option value="{{ cat }}">{{ cat }}</option>
-                                 {% endfor %}
-                             </select>
-                         </div>
-                         <div class="col-md-3">
-                             <label for="filterStartDate" class="form-label form-label-sm">Start Date</label>
-                             <input type="date" id="filterStartDate" class="form-control form-control-sm">
-                         </div>
-                         <div class="col-md-3">
-                              <label for="filterEndDate" class="form-label form-label-sm">End Date</label>
-                             <input type="date" id="filterEndDate" class="form-control form-control-sm">
-                         </div>
-                         <div class="col-md-3">
-                             <label for="filterDescription" class="form-label form-label-sm">Description</label>
-                             <input type="text" id="filterDescription" class="form-control form-control-sm" placeholder="Search...">
-                         </div>
-                         <!-- Add Apply/Reset buttons later if needed -->
+                    <div class="chart-grid-item quick-actions">
+                        <h6 class="mb-2 fw-semibold text-primary">Quick Actions</h6>
+                        <div class="d-grid gap-1 col-10 mx-auto">
+                           <a href="{{ url_for('transaction') }}" class="btn btn-primary btn-sm py-1">Record Transaction</a>
+                           <a href="{{url_for('category') }}" class="btn btn-primary btn-sm py-1">Manage Categories</a>
+                           <a href="{{url_for('manage_goals') }}" class="btn btn-primary btn-sm py-1">Manage Goals</a>
+                           <a href="{{url_for('manage_transaction') }}" class="btn btn-secondary btn-sm py-1">Manage Transactions</a>
+                           <a href="{{url_for('record_goal') }}" class="btn btn-secondary btn-sm py-1">Record Goal</a>
+                       </div>
+                    </div>
+                    <div class="chart-grid-item">
+                        <div id="predictionChartLoading" class="loading-indicator">Loading...</div>
+                        <img id="predictionChart" src="" alt="Spending Trend and Prediction">
+                    </div>
+                    <div class="chart-grid-item prediction-analysis">
+                        <h6 class="mb-2 fw-semibold text-primary w-100 text-center">Prediction Analysis</h6>
+                        <div id="predictionAnalysisLoading" class="loading-indicator" style="position: relative; display:block; transform: none; top:auto; left: auto;margin: 5px auto;">Loading...</div>
+                        <div id="predictionAnalysisText"></div>
+                    </div>
+                    <div class="chart-grid-item">
+                        <div id="lineChartCategoryLoading" class="loading-indicator">Loading...</div>
+                        <img id="lineChartCategory" src="" alt="Daily Spending by Category">
                     </div>
                 </div>
-
-                <div class="transaction-list-container">
-                    <div id="transactionTableLoading" class="loading-indicator" style="position:relative; display: block; transform:none; top: 20px; left:0;">Loading Transactions...</div>
-                    <table class="table table-striped table-hover transaction-table">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Description</th>
-                                <th>Category</th>
-                                <th>Amount</th>
-                                <th>Account</th>
-                            </tr>
-                        </thead>
-                        <tbody id="transactionTableBody">
-                            <!-- Transaction rows will be inserted here -->
-                        </tbody>
-                    </table>
-                    <p id="noTransactionsMessage" class="text-center text-muted mt-3" style="display: none;">No transactions found matching filters.</p>
-                </div>
-
             </div>
         </div>
     </div>
@@ -402,324 +154,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        const lineChartCategoryImage = document.getElementById('lineChartCategory');
-        const lineChartCategoryLoadingIndicator = document.getElementById('lineChartCategoryLoading');
-        const pieChartImage = document.getElementById('pieChartSidebar');
-        const pieLoadingIndicator = document.getElementById('pieChartLoadingSidebar');
-        const categoryPieChartImage = document.getElementById('categoryPieChartSidebar');
-        const categoryPieLoadingIndicator = document.getElementById('categoryPieChartLoadingSidebar');
-        const predictionChartImage = document.getElementById('predictionChart');
-        const predictionChartLoadingIndicator = document.getElementById('predictionChartLoading');
-        const predictionAnalysisTextDiv = document.getElementById('predictionAnalysisText');
-        const predictionAnalysisLoadingIndicator = document.getElementById('predictionAnalysisLoading');
 
-        const viewSelect = document.getElementById('viewSelect');
-        const prevButton = document.getElementById('prevButton');
-        const nextButton = document.getElementById('nextButton');
-        const currentTimeframeSpan = document.getElementById('currentTimeframe');
-        const hiddenViewInput = document.getElementById('hidden_time_view');
-        const hiddenOffsetInput = document.getElementById('hidden_time_offset');
-        const hiddenStartDateInput = document.getElementById('hidden_start_date_form');
-        const hiddenEndDateInput = document.getElementById('hidden_end_date_form');
-        const timeframeForm = document.getElementById('timeframeForm');
-
-        const chatFab = document.getElementById('chat-fab');
-        const chatPopup = document.getElementById('chat-popup');
-        const closeChatPopup = document.getElementById('close-chat-popup');
-        const chatHistory = document.getElementById('chatHistory');
-        const chatInput = document.getElementById('chatInput');
-        const sendChatButton = document.getElementById('sendChatButton');
-        const chatLoadingIndicator = document.getElementById('chatLoadingIndicator');
-        const chatPeriodDisplay = document.getElementById('chat-period-display');
-        const chatSuggestionsContainer = document.querySelector('.chat-suggestions');
-
-        const transactionTableBody = document.getElementById('transactionTableBody');
-        const transactionTableLoading = document.getElementById('transactionTableLoading');
-        const noTransactionsMessage = document.getElementById('noTransactionsMessage');
-        const filterCategorySelect = document.getElementById('filterCategory');
-        const filterStartDateInput = document.getElementById('filterStartDate');
-        const filterEndDateInput = document.getElementById('filterEndDate');
-        const filterDescriptionInput = document.getElementById('filterDescription');
-
-
-        let currentView = hiddenViewInput.value || 'month';
-        let currentOffset = parseInt(hiddenOffsetInput.value || '0');
-        let currentStartDate = hiddenStartDateInput.value || null;
-        let currentEndDate = hiddenEndDateInput.value || null;
-        let transactionLoadDebounceTimer;
-
-
-        function formatDateISO(date) {
-            if (!date || !(date instanceof Date)) return null;
-            try { return date.toISOString().split('T')[0]; } catch (e) { return null; }
-        }
-
-        async function loadChart(imgElement, loadingIndicator, apiUrl, params = {}, altTextBase = "Chart") {
-            loadingIndicator.style.display = 'block';
-            imgElement.classList.remove('visible');
-            imgElement.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-            imgElement.alt = `Loading ${altTextBase}...`;
-
-            const queryParams = new URLSearchParams(params).toString();
-            const fullUrl = `${apiUrl}?${queryParams}`;
-
-            try {
-                const response = await fetch(fullUrl);
-                const data = await response.json(); // Try to parse JSON regardless of status
-
-                if (!response.ok) {
-                    throw new Error(data.error || `HTTP error! status: ${response.status}`);
-                }
-                if (!data || !data.chart_uri) {
-                     throw new Error("Invalid chart data received from server.");
-                }
-
-                imgElement.onload = () => { loadingIndicator.style.display = 'none'; imgElement.classList.add('visible'); imgElement.alt = `${altTextBase}`; imgElement.onload = null; };
-                imgElement.onerror = () => { console.error(`Error loading image data URI for ${apiUrl}.`); loadingIndicator.innerText = 'Display Error'; loadingIndicator.style.display = 'block'; imgElement.alt = `Error displaying ${altTextBase}`; imgElement.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23eee'/%3E%3Ctext x='50' y='55' font-family='Arial' font-size='12' fill='%23aaa' text-anchor='middle'%3EError%3C/text%3E%3C/svg%3E"; imgElement.onload = null; imgElement.onerror = null; };
-                imgElement.src = data.chart_uri;
-
-            } catch (error) {
-                console.error(`Error fetching or processing chart data for ${apiUrl}:`, error);
-                loadingIndicator.innerText = `Load Error`; loadingIndicator.style.display = 'block';
-                imgElement.alt = `Error loading ${altTextBase}: ${error.message}`;
-                imgElement.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23eee'/%3E%3Ctext x='50' y='55' font-family='Arial' font-size='12' fill='%23aaa' text-anchor='middle'%3EError%3C/text%3E%3C/svg%3E";
-                imgElement.onload = null; imgElement.onerror = null;
-            }
-        }
-
-        async function loadPredictionChartAndText(params = {}) {
-            predictionChartLoadingIndicator.style.display = 'block';
-            predictionChartImage.classList.remove('visible');
-            predictionChartImage.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-            predictionChartImage.alt = "Loading Prediction Chart...";
-            predictionAnalysisLoadingIndicator.style.display = 'block';
-            predictionAnalysisTextDiv.innerHTML = '';
-
-            const chartParams = new URLSearchParams(params).toString();
-            const chartApiUrl = `/api/prediction-chart?${chartParams}`;
-            const analysisApiUrl = `/api/spending-prediction?${chartParams}`;
-
-            try {
-                // Fetch both in parallel
-                const [chartResponse, analysisResponse] = await Promise.all([
-                    fetch(chartApiUrl),
-                    fetch(analysisApiUrl)
-                ]);
-
-                // Process Chart Response
-                const chartData = await chartResponse.json();
-                if (!chartResponse.ok) { throw new Error(chartData.error || `Chart HTTP error! status: ${chartResponse.status}`); }
-                if (!chartData || !chartData.chart_uri) { throw new Error("Invalid prediction chart data received."); }
-
-                predictionChartImage.onload = () => { predictionChartLoadingIndicator.style.display = 'none'; predictionChartImage.classList.add('visible'); predictionChartImage.alt = "Spending Prediction Chart"; predictionChartImage.onload = null; };
-                predictionChartImage.onerror = () => { console.error("Error loading prediction chart image URI."); predictionChartLoadingIndicator.innerText = 'Display Error'; predictionChartLoadingIndicator.style.display = 'block'; predictionChartImage.alt = 'Error displaying prediction chart'; predictionChartImage.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23eee'/%3E%3Ctext x='50' y='55' font-family='Arial' font-size='12' fill='%23aaa' text-anchor='middle'%3EError%3C/text%3E%3C/svg%3E"; predictionChartImage.onload = null; predictionChartImage.onerror = null; };
-                predictionChartImage.src = chartData.chart_uri;
-
-                // Process Analysis Response
-                const analysisData = await analysisResponse.json();
-                if (!analysisResponse.ok) { throw new Error(analysisData.error || `Analysis HTTP error! status: ${analysisResponse.status}`); }
-                if (!analysisData || typeof analysisData.analysis_text === 'undefined') { throw new Error("Invalid prediction analysis data received."); }
-                predictionAnalysisTextDiv.innerHTML = analysisData.analysis_text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>').replace(/\n/g, '<br>');
-
-            } catch (error) {
-                console.error('Error fetching prediction data:', error);
-                 // Display error on both chart and text area
-                 predictionChartLoadingIndicator.innerText = `Chart Load Error`; predictionChartLoadingIndicator.style.display = 'block';
-                 predictionChartImage.alt = `Error loading prediction chart: ${error.message}`; predictionChartImage.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23eee'/%3E%3Ctext x='50' y='55' font-family='Arial' font-size='12' fill='%23aaa' text-anchor='middle'%3EError%3C/text%3E%3C/svg%3E";
-                 predictionAnalysisTextDiv.innerHTML = `<em>Error loading analysis: ${error.message}</em>`;
-            } finally {
-                predictionAnalysisLoadingIndicator.style.display = 'none'; // Hide text loading indicator regardless of outcome
-            }
-        }
-
-        async function loadTransactions() {
-            transactionTableLoading.style.display = 'block';
-            transactionTableBody.innerHTML = ''; // Clear existing rows
-            noTransactionsMessage.style.display = 'none';
-
-            const params = new URLSearchParams({
-                start_date: filterStartDateInput.value || currentStartDate, // Use filter or default view dates
-                end_date: filterEndDateInput.value || currentEndDate,
-                category: filterCategorySelect.value,
-                description: filterDescriptionInput.value
-            });
-
-            // Remove empty parameters
-            params.forEach((value, key) => {
-                if (!value) { params.delete(key); }
-            });
-
-            const apiUrl = `/api/transactions?${params.toString()}`;
-
-            try {
-                const response = await fetch(apiUrl);
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.error || `HTTP error ${response.status}`);
-                }
-
-                if (data && data.length > 0) {
-                     data.forEach(t => {
-                         const row = transactionTableBody.insertRow();
-                         row.insertCell().textContent = t.Transaction_Date || 'N/A';
-                         row.insertCell().textContent = t.Transaction_Description || '-';
-                         row.insertCell().textContent = t.Category_Name || 'Uncategorized';
-                         const amountCell = row.insertCell();
-                         amountCell.textContent = `$${parseFloat(t.Transaction_Amount || 0).toFixed(2)}`;
-                         amountCell.classList.add(t.Transaction_Amount >= 0 ? 'amount-positive' : 'amount-negative'); // Example coloring
-                         row.insertCell().textContent = t.Account_Name || 'N/A';
-                     });
-                 } else {
-                     noTransactionsMessage.style.display = 'block';
-                 }
-
-            } catch (error) {
-                 console.error("Error loading transactions:", error);
-                 transactionTableBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Error loading transactions: ${error.message}</td></tr>`;
-            } finally {
-                 transactionTableLoading.style.display = 'none';
-            }
-        }
-
-
-        function updateDashboardState(loadTrans = true) { // Add flag to control transaction reload
-            const now = new Date();
-            let timeframeText = "";
-            let startDate = null;
-            let endDate = null;
-
-            if (currentView === 'month') {
-                const targetMonthDate = new Date(now.getFullYear(), now.getMonth() + currentOffset, 1);
-                startDate = new Date(targetMonthDate.getFullYear(), targetMonthDate.getMonth(), 1);
-                endDate = new Date(targetMonthDate.getFullYear(), targetMonthDate.getMonth() + 1, 0);
-                timeframeText = targetMonthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-            } else if (currentView === 'week') {
-                const targetDate = new Date(now); targetDate.setDate(targetDate.getDate() + (currentOffset * 7));
-                const dayOfWeek = targetDate.getDay() || 7;
-                startDate = new Date(targetDate); startDate.setDate(startDate.getDate() - (dayOfWeek - 1));
-                endDate = new Date(startDate); endDate.setDate(startDate.getDate() + 6);
-                const options = { month: 'short', day: 'numeric' };
-                timeframeText = `${startDate.toLocaleDateString('en-US', options)} - ${endDate.toLocaleDateString('en-US', { ...options, year: 'numeric' })}`;
-            } else if (currentView === 'year') {
-                const targetYear = now.getFullYear() + currentOffset;
-                startDate = new Date(targetYear, 0, 1); endDate = new Date(targetYear, 11, 31);
-                timeframeText = `${targetYear}`;
-            }
-
-            currentStartDate = formatDateISO(startDate);
-            currentEndDate = formatDateISO(endDate);
-            currentTimeframeSpan.innerText = timeframeText;
-            chatPeriodDisplay.textContent = timeframeText;
-
-            hiddenViewInput.value = currentView;
-            hiddenOffsetInput.value = currentOffset;
-            hiddenStartDateInput.value = currentStartDate;
-            hiddenEndDateInput.value = currentEndDate;
-
-            // Set default filter dates only if they are empty
-            if (!filterStartDateInput.value) filterStartDateInput.value = currentStartDate;
-            if (!filterEndDateInput.value) filterEndDateInput.value = currentEndDate;
-
-
-            if (!currentStartDate || !currentEndDate) {
-                 console.error("Date calculation failed, cannot load data.");
-                 // Show errors...
-                 return;
-            }
-
-            const commonParams = { view: currentView, start_date: currentStartDate, end_date: currentEndDate };
-
-            loadChart(pieChartImage, pieLoadingIndicator, '/api/pie-chart', commonParams, "Budget vs Spending Chart");
-            loadChart(lineChartCategoryImage, lineChartCategoryLoadingIndicator, '/api/line-chart', commonParams, "Category Spending Line Chart");
-            loadChart(categoryPieChartImage, categoryPieLoadingIndicator, '/api/category-pie-chart', commonParams, "Category Spending Pie Chart");
-            loadPredictionChartAndText({ view: currentView, start_date: currentStartDate });
-
-             if(loadTrans) { // Only load transactions if flag is true
-                 loadTransactions();
-             }
-        }
-
-        function submitTimeframeForm() {
-             filterStartDateInput.value = ''; // Clear filters when changing main view
-             filterEndDateInput.value = '';
-             filterCategorySelect.value = '';
-             filterDescriptionInput.value = '';
-             hiddenViewInput.value = currentView;
-             hiddenOffsetInput.value = currentOffset;
-             // Dates will be calculated by the backend based on view/offset
-             hiddenStartDateInput.value = '';
-             hiddenEndDateInput.value = '';
-             timeframeForm.submit();
-        }
-
-         function addChatMessage(message, isUser) {
-             const listItem = document.createElement('li');
-             listItem.classList.add(isUser ? 'user-message' : 'bot-message');
-             const sanitizedMessage = message.replace(/</g, "<").replace(/>/g, ">");
-             listItem.innerHTML = sanitizedMessage.replace(/\n/g, '<br>');
-             chatHistory.appendChild(listItem);
-             const chatBody = chatPopup.querySelector('.chat-body');
-             chatBody.scrollTop = chatBody.scrollHeight;
-         }
-
-         async function sendChatMessage(messageToSend = null) {
-             const userMessage = messageToSend ?? chatInput.value.trim();
-             if (!userMessage) return;
-
-             addChatMessage(userMessage, true);
-             chatInput.value = '';
-             chatLoadingIndicator.style.display = 'block';
-             sendChatButton.disabled = true;
-             chatInput.disabled = true;
-
-             try {
-                  const response = await fetch('/api/chatbot', {
-                     method: 'POST', headers: { 'Content-Type': 'application/json', },
-                     body: JSON.stringify({ prompt: userMessage, start_date: currentStartDate, end_date: currentEndDate, view_type: currentView }),
-                 });
-                 const data = await response.json();
-                 if (!response.ok) { throw new Error(data.error || `HTTP error ${response.status}`); }
-                 addChatMessage(data.response || "Sorry, I couldn't get a response.", false);
-             } catch (error) {
-                  console.error("Chatbot API error:", error);
-                  addChatMessage(`Error: ${error.message}`, false);
-             } finally {
-                 chatLoadingIndicator.style.display = 'none';
-                 sendChatButton.disabled = false;
-                 chatInput.disabled = false;
-                 chatInput.focus();
-             }
-         }
-
-        // --- Event Listeners ---
-
-        viewSelect.addEventListener('change', () => { currentView = viewSelect.value; currentOffset = 0; submitTimeframeForm(); });
-        prevButton.addEventListener('click', (event) => { event.preventDefault(); currentOffset--; submitTimeframeForm(); });
-        nextButton.addEventListener('click', (event) => { event.preventDefault(); currentOffset++; submitTimeframeForm(); });
-
-        // Transaction Filter Listeners (with debounce for text input)
-         filterCategorySelect.addEventListener('change', loadTransactions);
-         filterStartDateInput.addEventListener('change', loadTransactions);
-         filterEndDateInput.addEventListener('change', loadTransactions);
-         filterDescriptionInput.addEventListener('input', () => {
-             clearTimeout(transactionLoadDebounceTimer);
-             transactionLoadDebounceTimer = setTimeout(loadTransactions, 500); // Wait 500ms after typing stops
-         });
-
-        // Chatbot Listeners
-        chatFab.addEventListener('click', () => { chatPopup.classList.toggle('show'); if (chatPopup.classList.contains('show')) { chatInput.focus(); } });
-        closeChatPopup.addEventListener('click', () => { chatPopup.classList.remove('show'); });
-        sendChatButton.addEventListener('click', () => sendChatMessage());
-        chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } });
-        chatSuggestionsContainer.addEventListener('click', (event) => { if (event.target.classList.contains('suggestion-btn')) { sendChatMessage(event.target.textContent); } });
-
-        // Initial Load
-        document.addEventListener('DOMContentLoaded', () => {
-             viewSelect.value = currentView;
-             updateDashboardState(); // Initial load of charts and transactions
-        });
-    </script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 </body>
 </html>

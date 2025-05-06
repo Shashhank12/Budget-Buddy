@@ -1,0 +1,19 @@
+.gradient-custom {
+    background: linear-gradient(to right,rgb(10, 67, 141),rgb(26, 115, 232));
+}
+
+.title-link {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #ffffff;
+    text-decoration: none;
+    z-index: 1000;
+}
+
+.title-link:hover {
+    color: #444;
+    text-decoration: none;
+}

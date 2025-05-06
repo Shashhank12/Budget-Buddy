@@ -9,264 +9,242 @@
 
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <meta name="description" content="Budget Buddy - Your personal finance assistant">
-  <meta name="keywords" content="budget, finance, money, savings, expenses">
-  <meta name="author" content="Budget Buddy">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <meta
+      name="description"
+      content="Budget Buddy - Your personal finance assistant"
+    />
+    <meta name="keywords" content="budget, finance, money, savings, expenses" />
+    <meta name="author" content="Budget Buddy" />
 
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
-  <title>Budget Buddy</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/index.css') }}"
+    />
+    <title>Budget Buddy</title>
+  </head>
 
-  <style>
-    :root {
-      --primary-blue: #1a73e8;
-      --dark-blue: #0d47a1;
-      --light-blue: #e8f0fe;
-      --white: #ffffff;
-    }
-    
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }
-    
-    .bg-primary-blue {
-      background-color: var(--primary-blue);
-    }
-    
-    .bg-light-blue {
-      background-color: var(--light-blue);
-    }
-    
-    .text-primary-blue {
-      color: var(--primary-blue);
-    }
-    
-    .btn-primary-blue {
-      background-color: var(--primary-blue);
-      color: white;
-      border: none;
-    }
-    
-    .btn-primary-blue:hover {
-      background-color: var(--dark-blue);
-      color: white;
-    }
-    
-    .btn-outline-blue {
-      border-color: var(--primary-blue);
-      color: var(--primary-blue);
-    }
-    
-    .btn-outline-blue:hover {
-      background-color: var(--primary-blue);
-      color: white;
-    }
-    
-    .hero-section {
-      background: linear-gradient(135deg, var(--primary-blue) 0%, var(--dark-blue) 100%);
-      color: white;
-      padding: 5rem 0;
-    }
-    
-    .feature-icon {
-      font-size: 2.5rem;
-      color: var(--primary-blue);
-      margin-bottom: 1rem;
-    }
-    
-    .navbar-brand {
-      font-weight: 700;
-      font-size: 1.5rem;
-    }
-    
-    .navbar {
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    }
-    
-    .nav-link {
-      font-weight: 500;
-    }
-    
-    .card {
-      border: none;
-      border-radius: 10px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      transition: transform 0.3s ease;
-    }
-    
-    .card:hover {
-      transform: translateY(-5px);
-    }
-    
-    .testimonial-card {
-      background-color: var(--light-blue);
-      border-left: 4px solid var(--primary-blue);
-    }
-    
-    footer {
-      background-color: #f8f9fa;
-      padding: 3rem 0;
-    }
-    
-    .app-badge img {
-      height: 50px;
-    }
-  </style>
-</head>
-
-<body>
-  <nav class="navbar navbar-expand-lg navbar-light bg-white sticky-top">
-    <div class="container">
-      <a class="navbar-brand text-primary-blue" href="#">
-        <i class="fas fa-piggy-bank me-2"></i>Budget Buddy
-      </a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="navbarNav">
-        <ul class="navbar-nav me-auto">
-          <li class="nav-item">
-            <a class="nav-link active" href="/">Home</a>
-          </li>
-        </ul>
-        <div class="d-flex">
-          <a href="/login" class="btn btn-outline-blue me-2">Login</a>
-          <a href="/register" class="btn btn-primary-blue">Register</a>
-        </div>
-      </div>
-    </div>
-  </nav>
-
-  <section class="hero-section">
-    <div class="container">
-      <div class="row align-items-center">
-        <div class="col-lg-6">
-          <h1 class="display-4 fw-bold mb-4">Take Control of Your Finances</h1>
-          <p class="lead mb-4">Budget Buddy helps you track expenses through visualizations and set financial goals.</p>
-        </div>
-        <div class="col-lg-6">
-          <div class="d-flex justify-content-center align-items-center overflow-hidden rounded shadow" style="height: 100%; max-height: 400px;">
-            <img src="static/imagehome2.png" alt="Budget Buddy App" class="img-fluid" style="object-fit: cover; width: 100%; height: 100%;">
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="py-5">
-    <div class="container py-5">
-      <div class="text-center mb-5">
-        <h2 class="fw-bold">Why Choose Budget Buddy</h2>
-        <p class="lead text-muted">Smart features to simplify your financial life</p>
-      </div>
-      <div class="row g-4">
-        <div class="col-md-4">
-          <div class="card h-100 p-4 text-center">
-            <div class="feature-icon">
-              <i class="fas fa-chart-pie"></i>
-            </div>
-            <h3>Expense Tracking</h3>
-            <p>Automatically categorize and visualize your spending patterns to identify savings opportunities. Receive analyses of spending habits</p>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="card h-100 p-4 text-center">
-            <div class="feature-icon">
-              <i class="fas fa-bullseye"></i>
-            </div>
-            <h3>Goal Setting</h3>
-            <p>Set and track financial goals for making big financial decisions such as buying a home.</p>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="card h-100 p-4 text-center">
-            <div class="feature-icon">
-              <i class="fas fa-bell"></i>
-            </div>
-            <h3>Smart Alerts</h3>
-            <p>Receive notifications for unusual spending, bill due dates, and when you're approaching budget limits.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="bg-light-blue py-5">
-    <div class="container py-5">
-      <div class="row align-items-center">
-        <div class="col-lg-6">
-          <img src="static/imagehome1.png" alt="Mobile App" class="img-fluid rounded shadow">
-        </div>
-        <div class="col-lg-6">
-          <h2 class="fw-bold mb-4">Simple & Effective Budget Management</h2>
-          <div class="d-flex mb-4">
-            <div class="me-4">
-              <div class="bg-primary-blue text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
-                <span class="h4 mb-0">1</span>
-              </div>
-            </div>
-            <div>
-              <h4>Add your bank accounts and other users</h4>
-              <p class="text-muted">Add various types of accounts including checking and savings accounts. Add additional household members for household tracking.</p>
-            </div>
-          </div>
-          <div class="d-flex mb-4">
-            <div class="me-4">
-              <div class="bg-primary-blue text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
-                <span class="h4 mb-0">2</span>
-              </div>
-            </div>
-            <div>
-              <h4>Stay true to your budgets</h4>
-              <p class="text-muted">Create customized budgets based on income and spending habits. Change and update budgets for different time periods.</p>
-            </div>
-          </div>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-white sticky-top">
+      <div class="container">
+        <a class="navbar-brand text-primary-blue" href="/">
+          <i class="fas me-2"></i>Budget Buddy
+        </a>
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarNav"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+            </li>
+          </ul>
           <div class="d-flex">
-            <div class="me-4">
-              <div class="bg-primary-blue text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
-                <span class="h4 mb-0">3</span>
-              </div>
-            </div>
-            <div>
-              <h4>Track & Improve</h4>
-              <p class="text-muted">Monitor your progress and get personalized tips to improve your finances. Set goals and achieve on them efficiently.</p>
+            <a href="/login" class="btn btn-outline-blue me-2">Login</a>
+            <a href="/register" class="btn btn-primary-blue">Register</a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <section class="hero-section">
+      <div class="container">
+        <div class="row align-items-center">
+          <div class="col-lg-6">
+            <h1 class="display-4 fw-bold mb-4">
+              Take Control of Your Finances
+            </h1>
+            <p class="lead mb-4">
+              Budget Buddy helps you track expenses through visualizations and
+              set financial goals.
+            </p>
+          </div>
+          <div class="col-lg-6">
+            <div
+              class="d-flex justify-content-center align-items-center overflow-hidden rounded shadow"
+              style="height: 100%; max-height: 400px"
+            >
+              <img
+                src="static/imagehome2.png"
+                alt="Budget Buddy App"
+                class="img-fluid"
+                style="object-fit: cover; width: 100%; height: 100%"
+              />
             </div>
           </div>
         </div>
       </div>
-    </div>
-  </section>
-  <section class="bg-primary-blue text-white py-5">
-    <div class="container py-5 text-center">
-      <h2 class="display-5 fw-bold mb-4">Register or login to get started</h2>
-      <p class="lead mb-5">Take your budgeting to the next level</p>
-      <div class="d-flex justify-content-center gap-3">
-        <a href="/login" class="btn btn-light btn-lg px-4">Login</a>
-        <a href="/register" class="btn btn-outline-light btn-lg px-4">Register</a>
-      </div>
-    </div>
-  </section>
-  <footer class="bg-dark text-white pt-5 pb-4">
-    <div class="container">
-      <div class="row">
-        <div class="col-lg-4 mb-4">
-          <h5 class="text-primary-blue mb-4">
-            <i class="fas fa-piggy-bank me-2"></i>Budget Buddy
-          </h5>
-          <p>Your trusted partner for personal finance management. Helping you save more, spend wisely, and achieve on your financial goals.</p>
+    </section>
+
+    <section class="py-5">
+      <div class="container py-5">
+        <div class="text-center mb-5">
+          <h2 class="fw-bold">Why Choose Budget Buddy</h2>
+          <p class="lead text-muted">
+            Smart features to simplify your financial life
+          </p>
+        </div>
+        <div class="row g-4">
+          <div class="col-md-4">
+            <div class="card h-100 p-4 text-center">
+              <div class="feature-icon">
+                <i class="fas fa-chart-pie"></i>
+              </div>
+              <h3>Expense Tracking</h3>
+              <p>
+                Automatically categorize and visualize your spending patterns to
+                identify savings opportunities. Receive analyses of spending
+                habits
+              </p>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card h-100 p-4 text-center">
+              <div class="feature-icon">
+                <i class="fas fa-bullseye"></i>
+              </div>
+              <h3>Goal Setting</h3>
+              <p>
+                Set and track financial goals for making big financial decisions
+                such as buying a home.
+              </p>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card h-100 p-4 text-center">
+              <div class="feature-icon">
+                <i class="fas fa-bell"></i>
+              </div>
+              <h3>Smart Alerts</h3>
+              <p>
+                Receive notifications for unusual spending, bill due dates, and
+                when you're approaching budget limits.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
-      <hr class="my-4">
-      <div class="row">
-        <div class="col-md-6 text-center text-md-start">
-          <p class="mb-0">&copy; 2025 Budget Buddy.</p>
+    </section>
+
+    <section class="bg-light-blue py-5">
+      <div class="container py-5">
+        <div class="row align-items-center">
+          <div class="col-lg-6">
+            <img
+              src="static/imagehome1.png"
+              alt="Mobile App"
+              class="img-fluid rounded shadow"
+            />
+          </div>
+          <div class="col-lg-6">
+            <h2 class="fw-bold mb-4">Simple & Effective Budget Management</h2>
+            <div class="d-flex mb-4">
+              <div class="me-4">
+                <div
+                  class="bg-primary-blue text-white rounded-circle d-flex align-items-center justify-content-center"
+                  style="width: 50px; height: 50px"
+                >
+                  <span class="h4 mb-0">1</span>
+                </div>
+              </div>
+              <div>
+                <h4>Add your bank accounts and other users</h4>
+                <p class="text-muted">
+                  Add various types of accounts including checking and savings
+                  accounts. Add additional household members for household
+                  tracking.
+                </p>
+              </div>
+            </div>
+            <div class="d-flex mb-4">
+              <div class="me-4">
+                <div
+                  class="bg-primary-blue text-white rounded-circle d-flex align-items-center justify-content-center"
+                  style="width: 50px; height: 50px"
+                >
+                  <span class="h4 mb-0">2</span>
+                </div>
+              </div>
+              <div>
+                <h4>Stay true to your budgets</h4>
+                <p class="text-muted">
+                  Create customized budgets based on income and spending habits.
+                  Change and update budgets for different time periods.
+                </p>
+              </div>
+            </div>
+            <div class="d-flex">
+              <div class="me-4">
+                <div
+                  class="bg-primary-blue text-white rounded-circle d-flex align-items-center justify-content-center"
+                  style="width: 50px; height: 50px"
+                >
+                  <span class="h4 mb-0">3</span>
+                </div>
+              </div>
+              <div>
+                <h4>Track & Improve</h4>
+                <p class="text-muted">
+                  Monitor your progress and get personalized tips to improve
+                  your finances. Set goals and achieve on them efficiently.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  </footer>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
+    </section>
+    <section class="bg-primary-blue text-white py-5">
+      <div class="container py-5 text-center">
+        <h2 class="display-5 fw-bold mb-4">Register or login to get started</h2>
+        <p class="lead mb-5">Take your budgeting to the next level</p>
+        <div class="d-flex justify-content-center gap-3">
+          <a href="/login" class="btn btn-light btn-lg px-4">Login</a>
+          <a href="/register" class="btn btn-outline-light btn-lg px-4"
+            >Register</a
+          >
+        </div>
+      </div>
+    </section>
+    <footer class="bg-dark text-white pt-5 pb-4">
+      <div class="container">
+        <div class="row">
+          <div class="col-lg-4 mb-4">
+            <h5 class="text-primary-blue mb-4">
+              <i class="fas"></i>Budget Buddy
+            </h5>
+            <p>
+              Your trusted partner for personal finance management. Helping you
+              save more, spend wisely, and achieve on your financial goals.
+            </p>
+          </div>
+        </div>
+        <hr class="my-4" />
+        <div class="row">
+          <div class="col-md-6 text-center text-md-start">
+            <p class="mb-0">&copy; 2025 Budget Buddy.</p>
+          </div>
+        </div>
+      </div>
+    </footer>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/index.js') }}"></script>
+  </body>
 </html>

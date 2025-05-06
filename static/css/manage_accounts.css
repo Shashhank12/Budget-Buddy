@@ -1,0 +1,49 @@
+body {
+  background-color: #f8f9fa;
+}
+.navbar {
+  background-color: #0d6efd !important;
+}
+.navbar-brand,
+.navbar span,
+.navbar button,
+.nav-link {
+  color: white !important;
+}
+.table th,
+.table td {
+  vertical-align: middle;
+}
+.action-buttons form {
+  display: inline-block;
+  margin-left: 5px;
+}
+
+.navbar {
+  background-color: #0d6efd !important;
+}
+
+.navbar-brand,
+.navbar span,
+.navbar button,
+.nav-link {
+  color: white !important;
+}
+
+.nav-link.active {
+  font-weight: bold;
+  text-decoration: underline;
+}
+
+.navbar .nav-link {
+  transition: color 0.2s ease-in-out, transform 0.2s ease-in-out;
+}
+
+.navbar .nav-link:hover {
+  color: #a3cfff !important;
+  transform: translateY(-2px);
+}
+
+.navbar .nav-link.active:hover {
+  color: #f8f9fa !important;
+}

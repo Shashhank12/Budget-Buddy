@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Manage Accounts</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/manage_accounts.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg px-4">
+        <a class="navbar-brand fs-3 fw-bold" href="{{ url_for('dashboard') }}">Budget Buddy</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav position-absolute start-50 translate-middle-x d-none d-lg-flex">
+                {% if 'user_id' in session %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == url_for('dashboard') %}active{% endif %}" {% if request.path == url_for('dashboard') %}aria-current="page"{% endif %} href="{{ url_for('dashboard') }}">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == url_for('manage_transaction') %}active{% endif %}" {% if request.path == url_for('manage_transaction') %}aria-current="page"{% endif %} href="{{ url_for('manage_transaction') }}">Transactions</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == url_for('category') %}active{% endif %}" {% if request.path == url_for('category') %}aria-current="page"{% endif %} href="{{ url_for('category') }}">Categories</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == url_for('manage_goals') %}active{% endif %}" {% if request.path == url_for('manage_goals') %}aria-current="page"{% endif %} href="{{ url_for('manage_goals') }}">Goals</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == url_for('manage_accounts') %}active{% endif %}" {% if request.path == url_for('manage_accounts') %}aria-current="page"{% endif %} href="{{ url_for('manage_accounts') }}">Accounts</a>
+                    </li>
+                {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == url_for('login') %}active{% endif %}" href="{{ url_for('login') }}">Login</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == url_for('register') %}active{% endif %}" href="{{ url_for('register') }}">Register</a>
+                    </li>
+                {% endif %}
+            </ul>    
+            {% if 'user_id' in session %}
+            <ul class="navbar-nav ms-auto align-items-center">
+                <li class="nav-item">
+                    <span class="navbar-text me-3">Hello, <strong>{{ user_name | default('User') }}</strong></span>
+                </li>
+                <li class="nav-item">
+                    <button class="btn btn-outline-light btn-sm" onclick="window.location.href='{{ url_for('logout') }}'">Logout</button>
+                </li>
+            </ul>
+            {% endif %}
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="mb-0">Your Linked Accounts</h2>
+             <!-- Button to trigger modal -->
+             <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addAccountModal">
+                <i class="bi bi-plus-circle-fill me-1"></i> Add New Account
+             </button>
+        </div>
+
+         <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% if accounts %}
+            <div class="card shadow-sm">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-primary">
+                            <tr>
+                                <th scope="col">Account Name</th>
+                                <th scope="col">Type</th>
+                                <th scope="col" class="text-end">Current Balance ($)</th>
+                                <th scope="col" class="text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for account in accounts %}
+                            <tr>
+                                <td>{{ account.Account_Name }}</td>
+                                <td>{{ account.Account_Type }}</td>
+                                <td class="text-end">{{ "%.2f"|format(account.Account_Balance | float) }}</td>
+                                <td class="text-center action-buttons">
+                                    <!-- Edit Button (Modal Trigger) -->
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editAccountModal-{{ account.Account_ID }}" title="Edit Account">
+                                        <i class="bi bi-pencil-square"></i> Edit
+                                    </button>
+                                    <!-- Delete Form -->
+                                    <form method="POST" action="{{ url_for('delete_account', account_id=account.Account_ID) }}" onsubmit="return confirm('Are you sure you want to delete this account? This cannot be undone.');">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Account">
+                                            <i class="bi bi-trash"></i> Delete
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% else %}
+             <div class="alert alert-info" role="alert">
+                You haven't added any accounts yet. Add your first account to start tracking!
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Add Account Modal -->
+    <div class="modal fade" id="addAccountModal" tabindex="-1" aria-labelledby="addAccountModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addAccountModalLabel">Add New Account</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST" action="{{ url_for('add_account') }}">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="add_account_name" class="form-label">Account Name</label>
+                            <input type="text" class="form-control" id="add_account_name" name="account_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="add_account_type" class="form-label">Account Type</label>
+                            <select class="form-select" id="add_account_type" name="account_type" required>
+                                <option value="" selected disabled>Choose...</option>
+                                <option value="Checking">Checking</option>
+                                <option value="Savings">Savings</option>
+                                <option value="Credit Card">Credit Card</option>
+                                <option value="Investment">Investment</option>
+                                <option value="Loan">Loan</option>
+                                <option value="Cash">Cash</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                             <label for="add_account_balance" class="form-label">Current Balance ($)</label>
+                             <input type="number" class="form-control" id="add_account_balance" name="account_balance" step="0.01" value="0.00" required>
+                             <div class="form-text">Enter the current balance. For credit cards or loans, enter a negative value if applicable.</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Save Account</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Account Modals (Generate one for each account) -->
+    {% if accounts %}
+        {% for account in accounts %}
+            <div class="modal fade" id="editAccountModal-{{ account.Account_ID }}" tabindex="-1" aria-labelledby="editAccountModalLabel-{{ account.Account_ID }}" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="editAccountModalLabel-{{ account.Account_ID }}">Edit Account: {{ account.Account_Name }}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <form method="POST" action="{{ url_for('edit_account', account_id=account.Account_ID) }}">
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label for="edit_account_name_{{ account.Account_ID }}" class="form-label">Account Name</label>
+                                    <input type="text" class="form-control" id="edit_account_name_{{ account.Account_ID }}" name="account_name" value="{{ account.Account_Name }}" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="edit_account_type_{{ account.Account_ID }}" class="form-label">Account Type</label>
+                                     <select class="form-select" id="edit_account_type_{{ account.Account_ID }}" name="account_type" required>
+                                        <option value="Checking" {% if account.Account_Type == 'Checking' %}selected{% endif %}>Checking</option>
+                                        <option value="Savings" {% if account.Account_Type == 'Savings' %}selected{% endif %}>Savings</option>
+                                        <option value="Credit Card" {% if account.Account_Type == 'Credit Card' %}selected{% endif %}>Credit Card</option>
+                                        <option value="Investment" {% if account.Account_Type == 'Investment' %}selected{% endif %}>Investment</option>
+                                        <option value="Loan" {% if account.Account_Type == 'Loan' %}selected{% endif %}>Loan</option>
+                                        <option value="Cash" {% if account.Account_Type == 'Cash' %}selected{% endif %}>Cash</option>
+                                        <option value="Other" {% if account.Account_Type == 'Other' %}selected{% endif %}>Other</option>
+                                     </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="edit_account_balance_{{ account.Account_ID }}" class="form-label">Current Balance ($)</label>
+                                     <input type="number" class="form-control" id="edit_account_balance_{{ account.Account_ID }}" name="account_balance" step="0.01" value="{{ '%.2f'|format(account.Account_Balance | float) }}" required>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                <button type="submit" class="btn btn-primary">Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

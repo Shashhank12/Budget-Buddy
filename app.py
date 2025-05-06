@@ -1048,7 +1048,146 @@ Answer based ONLY on the summary. If details aren't present (e.g., specific tran
         error_detail = str(e)
         return jsonify({"response": f"Sorry, error generating analysis."}), 500
 
-# --- New API Endpoint for Transactions ---
+
+@app.route('/api/transactions/update', methods=['POST'])
+def update_transaction_api():
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({"error": "Not authenticated"}), 401
+    
+    data = request.json
+    if not data or 'transaction_id' not in data:
+        return jsonify({"error": "Missing transaction data"}), 400
+    
+    transaction_id = data.get('transaction_id')
+    amount = data.get('amount')
+    description = data.get('description')
+    date = data.get('date')
+    category = data.get('category')
+    account = data.get('account')
+    
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor()
+            
+            # First verify that this transaction belongs to the current user
+            cursor.execute("SELECT 1 FROM makes WHERE User_ID = %s AND Transaction_ID = %s", 
+                          (user_id, transaction_id))
+            if not cursor.fetchone():
+                return jsonify({"error": "Transaction not found or access denied"}), 403
+            
+            # Get the original transaction amount for updating account balance
+            cursor.execute("SELECT Transaction_Amount FROM transactions WHERE Transaction_ID = %s", 
+                         (transaction_id,))
+            old_amount_result = cursor.fetchone()
+            old_amount = float(old_amount_result[0]) if old_amount_result else 0
+            
+            # Get the category ID
+            cursor.execute("SELECT Category_ID FROM categories WHERE Category_Name = %s", (category,))
+            category_result = cursor.fetchone()
+            if not category_result:
+                return jsonify({"error": f"Category '{category}' not found"}), 400
+            category_id = category_result[0]
+            
+            # Update the transaction
+            cursor.execute("""
+                UPDATE transactions 
+                SET Transaction_Amount = %s, 
+                    Transaction_Description = %s, 
+                    Transaction_Date = %s 
+                WHERE Transaction_ID = %s
+            """, (amount, description, date, transaction_id))
+            
+            # Update the category if needed
+            cursor.execute("SELECT Category_ID FROM falls_under WHERE Transaction_ID = %s", (transaction_id,))
+            current_category = cursor.fetchone()
+            if current_category and current_category[0] != category_id:
+                cursor.execute("UPDATE falls_under SET Category_ID = %s WHERE Transaction_ID = %s", 
+                             (category_id, transaction_id))
+            elif not current_category:
+                cursor.execute("INSERT INTO falls_under (Transaction_ID, Category_ID) VALUES (%s, %s)", 
+                             (transaction_id, category_id))
+            
+            # Update account balance - need to adjust by the difference between old and new amount
+            amount_diff = float(old_amount) - float(amount)  # Positive if new amount is smaller
+            
+            # Get the current account ID
+            cursor.execute("SELECT Account_ID FROM made_on WHERE Transaction_ID = %s", (transaction_id,))
+            current_account = cursor.fetchone()
+            current_account_id = current_account[0] if current_account else None
+            
+            if current_account_id and str(current_account_id) != str(account):
+                # Account changed - update old account balance by adding back the full old amount
+                cursor.execute("UPDATE accounts SET Account_Balance = Account_Balance + %s WHERE Account_ID = %s", 
+                             (old_amount, current_account_id))
+                
+                # Then subtract the new amount from the new account
+                cursor.execute("UPDATE accounts SET Account_Balance = Account_Balance - %s WHERE Account_ID = %s", 
+                             (amount, account))
+                
+                # Update the made_on relationship
+                cursor.execute("UPDATE made_on SET Account_ID = %s WHERE Transaction_ID = %s", 
+                             (account, transaction_id))
+            else:
+                # Same account - just adjust by the difference
+                cursor.execute("UPDATE accounts SET Account_Balance = Account_Balance + %s WHERE Account_ID = %s", 
+                             (amount_diff, current_account_id if current_account_id else account))
+            
+            db.commit()
+            return jsonify({"success": True, "message": "Transaction updated successfully"})
+            
+    except Exception as e:
+        print(f"Error updating transaction: {e}")
+        return jsonify({"error": f"Failed to update transaction: {str(e)}"}), 500
+
+
+@app.route('/api/transactions/delete/<int:transaction_id>', methods=['DELETE'])
+def delete_transaction_api(transaction_id):
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({"error": "Not authenticated"}), 401
+    
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor()
+            
+            # First verify ownership and get transaction details
+            cursor.execute("""
+                SELECT t.Transaction_Amount, mo.Account_ID 
+                FROM transactions t
+                JOIN makes m ON t.Transaction_ID = m.Transaction_ID
+                LEFT JOIN made_on mo ON t.Transaction_ID = mo.Transaction_ID
+                WHERE m.User_ID = %s AND t.Transaction_ID = %s
+            """, (user_id, transaction_id))
+            
+            transaction = cursor.fetchone()
+            if not transaction:
+                return jsonify({"error": "Transaction not found or access denied"}), 403
+            
+            amount = float(transaction[0]) if transaction[0] else 0
+            account_id = transaction[1]
+            
+            # Update account balance
+            if account_id:
+                cursor.execute("UPDATE accounts SET Account_Balance = Account_Balance + %s WHERE Account_ID = %s", 
+                             (amount, account_id))
+            
+            # Delete all related records in child tables first
+            cursor.execute("DELETE FROM falls_under WHERE Transaction_ID = %s", (transaction_id,))
+            cursor.execute("DELETE FROM made_on WHERE Transaction_ID = %s", (transaction_id,))
+            cursor.execute("DELETE FROM makes WHERE Transaction_ID = %s", (transaction_id,))
+            
+            # Finally delete the transaction itself
+            cursor.execute("DELETE FROM transactions WHERE Transaction_ID = %s", (transaction_id,))
+            
+            db.commit()
+            return jsonify({"success": True, "message": "Transaction deleted successfully"})
+            
+    except Exception as e:
+        print(f"Error deleting transaction: {e}")
+        return jsonify({"error": f"Failed to delete transaction: {str(e)}"}), 500
+
+
 @app.route('/api/transactions')
 def get_transactions_api():
     user_id = session.get('user_id')
@@ -1057,9 +1196,13 @@ def get_transactions_api():
 
     # Get filter parameters from query string
     filter_category = request.args.get('category', None)
+    filter_account = request.args.get('account', None)
     filter_start_date = request.args.get('start_date', None)
     filter_end_date = request.args.get('end_date', None)
     filter_description = request.args.get('description', None)
+    filter_min_amount = request.args.get('min_amount', None)
+    filter_max_amount = request.args.get('max_amount', None)
+    filter_sort = request.args.get('sort', 'date_desc')  # Default sort by date, newest first
 
     # Build the WHERE clause dynamically
     where_clauses = ["m.User_ID = %s"]
@@ -1068,6 +1211,9 @@ def get_transactions_api():
     if filter_category:
         where_clauses.append("c.Category_Name = %s")
         params.append(filter_category)
+    if filter_account:
+        where_clauses.append("a.Account_Name = %s")
+        params.append(filter_account)
     if filter_start_date:
         where_clauses.append("t.Transaction_Date >= %s")
         params.append(filter_start_date)
@@ -1075,11 +1221,27 @@ def get_transactions_api():
         where_clauses.append("t.Transaction_Date <= %s")
         params.append(filter_end_date)
     if filter_description:
-        # Use LIKE for partial matching, escape wildcard characters
         where_clauses.append("t.Transaction_Description LIKE %s")
         params.append(f"%{filter_description}%")
+    if filter_min_amount:
+        where_clauses.append("t.Transaction_Amount >= %s")
+        params.append(filter_min_amount)
+    if filter_max_amount:
+        where_clauses.append("t.Transaction_Amount <= %s")
+        params.append(filter_max_amount)
 
     sql_where = " AND ".join(where_clauses)
+
+    # Build the ORDER BY clause
+    order_clause = ""
+    if filter_sort == 'date_asc':
+        order_clause = "ORDER BY t.Transaction_Date ASC, t.Transaction_ID ASC"
+    elif filter_sort == 'amount_desc':
+        order_clause = "ORDER BY t.Transaction_Amount DESC, t.Transaction_Date DESC"
+    elif filter_sort == 'amount_asc':
+        order_clause = "ORDER BY t.Transaction_Amount ASC, t.Transaction_Date DESC"
+    else:  # Default: date_desc
+        order_clause = "ORDER BY t.Transaction_Date DESC, t.Transaction_ID DESC"
 
     query = f"""
         SELECT
@@ -1092,7 +1254,7 @@ def get_transactions_api():
         LEFT JOIN made_on mo ON t.Transaction_ID = mo.Transaction_ID
         LEFT JOIN accounts a ON mo.Account_ID = a.Account_ID
         WHERE {sql_where}
-        ORDER BY t.Transaction_Date DESC, t.Transaction_ID DESC
+        {order_clause}
     """
 
     transactions = []
@@ -1106,12 +1268,352 @@ def get_transactions_api():
                 if isinstance(t['Transaction_Date'], datetime.date):
                     t['Transaction_Date'] = t['Transaction_Date'].strftime('%Y-%m-%d')
             cursor.close()
-        # Use the custom DecimalEncoder implicitly via app.json_encoder
         return jsonify(transactions)
     except Exception as e:
         print(f"Error fetching transactions: {e}")
-        return jsonify({"error": "Failed to load transactions"}), 500
+        return jsonify({"error": f"Failed to load transactions: {str(e)}"}), 500
 
+
+@app.route('/manage_transaction')
+def manage_transaction():
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect(url_for('login'))
+
+    if not check_setup_complete(user_id):
+        flash('Please complete your account setup before managing transactions.', 'warning')
+        return redirect(url_for('setup'))
+
+    # Load categories for the dropdown filters
+    filter_categories = load_categories(user_id)
+    
+    # Load accounts for dropdown filters
+    accounts = []
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor(dictionary=True)
+            cursor.execute("SELECT Account_ID, Account_Name FROM accounts JOIN has USING (Account_ID) WHERE User_ID = %s", (user_id,))
+            accounts = cursor.fetchall()            
+            cursor.close()
+    except Exception as e:
+        print(f"Error loading accounts for manage transaction page: {e}")
+        flash('Could not load account data.', 'error')
+
+    return render_template('manage_transaction.html', 
+                          filter_categories=filter_categories,
+                          accounts=accounts,
+                          user_name=session.get('user_name', 'User'))
+
+@app.route('/record_goal', methods=['GET', 'POST'])
+def record_goal():
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        goal_name = request.form['goal_name']
+        goal_target = request.form['goal_target']
+        current_amount = request.form.get('current_amount', 0.00) # Get starting amount
+        goal_deadline = request.form['goal_deadline']
+        goal_description = request.form.get('goal_description', '') # Optional description
+
+        try:
+            with get_db_connection() as db:
+                cursor = db.cursor()
+                # Ensure Monthly_Budget is 0 for non-budget goals
+                cursor.execute("""
+                    INSERT INTO goals (Goal_Name, Goal_Date, Goal_Target, Current_Amount, Goal_Description, Monthly_Budget)
+                    VALUES (%s, %s, %s, %s, %s, 0)
+                """, (goal_name, goal_deadline, goal_target, current_amount, goal_description))
+                goal_id = cursor.lastrowid
+                cursor.execute("INSERT INTO sets (User_ID, Goal_ID) VALUES (%s, %s)", (user_id, goal_id))
+                db.commit()
+                cursor.close()
+                flash('New goal recorded successfully!', 'success')
+                return redirect(url_for('manage_goals')) # Redirect to manage goals page
+        except Exception as e:
+            print(f"Error recording goal: {e}")
+            flash('Failed to record goal. Please try again.', 'error')
+            # No need to redirect here, stay on the form page on error
+            # Fall through to render_template below
+
+    # GET request
+    return render_template('record_goal.html', user_name=session.get('user_name', 'User'))
+
+@app.route('/manage_goals')
+def manage_goals():
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect(url_for('login'))
+
+    goals = []
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor(dictionary=True)
+            # Fetch non-budget goals (Monthly_Budget = 0) and their progress
+            cursor.execute("""
+                SELECT Goal_ID, Goal_Name, Goal_Date, Goal_Target, Current_Amount, Goal_Description
+                FROM goals g
+                JOIN sets s USING(Goal_ID)
+                WHERE s.User_ID = %s AND g.Monthly_Budget = 0
+                ORDER BY g.Goal_Date ASC, g.Goal_Name ASC
+            """, (user_id,))
+            goals = cursor.fetchall()
+            cursor.close()
+    except Exception as e:
+        print(f"Error loading goals: {e}")
+        flash('Could not load your goals.', 'error')
+
+    return render_template('manage_goals.html',
+                           goals=goals,
+                           user_name=session.get('user_name', 'User'))
+
+@app.route('/update_goal_progress', methods=['POST'])
+def update_goal_progress():
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect(url_for('login'))
+
+    goal_id = request.form.get('goal_id')
+    current_amount = request.form.get('current_amount')
+
+    if not goal_id or current_amount is None:
+        flash('Invalid data provided for update.', 'error')
+        return redirect(url_for('manage_goals'))
+
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor()
+            # IMPORTANT: Check if the goal belongs to the user before updating
+            cursor.execute("SELECT 1 FROM sets WHERE User_ID = %s AND Goal_ID = %s", (user_id, goal_id))
+            if not cursor.fetchone():
+                 flash('Goal not found or access denied.', 'error')
+            else:
+                cursor.execute("UPDATE goals SET Current_Amount = %s WHERE Goal_ID = %s", (current_amount, goal_id))
+                db.commit()
+                flash('Goal progress updated.', 'success')
+            cursor.close()
+    except Exception as e:
+        print(f"Error updating goal progress: {e}")
+        flash('Failed to update goal progress.', 'error')
+
+    return redirect(url_for('manage_goals'))
+
+
+@app.route('/delete_goal/<int:goal_id>', methods=['POST'])
+def delete_goal(goal_id):
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect(url_for('login'))
+
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor()
+             # IMPORTANT: Check if the goal belongs to the user before deleting
+            cursor.execute("SELECT 1 FROM sets WHERE User_ID = %s AND Goal_ID = %s", (user_id, goal_id))
+            if not cursor.fetchone():
+                 flash('Goal not found or access denied.', 'error')
+            else:
+                # Delete the link first
+                cursor.execute("DELETE FROM sets WHERE User_ID = %s AND Goal_ID = %s", (user_id, goal_id))
+                # Then delete the goal itself
+                cursor.execute("DELETE FROM goals WHERE Goal_ID = %s", (goal_id,))
+                db.commit()
+                flash('Goal deleted successfully.', 'success')
+            cursor.close()
+    except Exception as e:
+        print(f"Error deleting goal: {e}")
+        flash('Failed to delete goal.', 'error')
+
+    return redirect(url_for('manage_goals'))
+
+
+@app.route('/edit_goal/<int:goal_id>', methods=['GET', 'POST'])
+def edit_goal(goal_id):
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect(url_for('login'))
+    
+    # Check if the goal belongs to the user
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT g.* FROM goals g
+                JOIN sets s ON g.Goal_ID = s.Goal_ID
+                WHERE s.User_ID = %s AND g.Goal_ID = %s
+            """, (user_id, goal_id))
+            goal = cursor.fetchone()
+            cursor.close()
+            
+            if not goal:
+                flash('Goal not found or access denied.', 'error')
+                return redirect(url_for('manage_goals'))
+                
+    except Exception as e:
+        print(f"Error fetching goal data: {e}")
+        flash('Could not load goal details.', 'error')
+        return redirect(url_for('manage_goals'))
+    
+    if request.method == 'POST':
+        # Process form submission
+        goal_name = request.form['goal_name']
+        goal_target = request.form['goal_target']
+        goal_deadline = request.form['goal_deadline']
+        goal_description = request.form.get('goal_description', '')
+        
+        try:
+            with get_db_connection() as db:
+                cursor = db.cursor()
+                cursor.execute("""
+                    UPDATE goals 
+                    SET Goal_Name = %s, Goal_Target = %s, Goal_Date = %s, Goal_Description = %s
+                    WHERE Goal_ID = %s
+                """, (goal_name, goal_target, goal_deadline, goal_description, goal_id))
+                db.commit()
+                cursor.close()
+                flash('Goal updated successfully.', 'success')
+                return redirect(url_for('manage_goals'))
+        except Exception as e:
+            print(f"Error updating goal: {e}")
+            flash('Failed to update goal. Please try again.', 'error')
+    
+    # For GET requests, show edit form with current goal data
+    return render_template('edit_goal.html', goal=goal, user_name=session.get('user_name', 'User'))
+
+
+# --- Add this section for Account Management Routes ---
+
+@app.route('/manage_accounts')
+def manage_accounts():
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect(url_for('login'))
+
+    accounts = []
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT Account_ID, Account_Name, Account_Type, Account_Balance
+                FROM accounts a
+                JOIN has h USING(Account_ID)
+                WHERE h.User_ID = %s
+                ORDER BY a.Account_Name ASC
+            """, (user_id,))
+            accounts = cursor.fetchall()
+            cursor.close()
+    except Exception as e:
+        print(f"Error loading accounts: {e}")
+        flash('Could not load your accounts.', 'error')
+
+    return render_template('manage_accounts.html',
+                           accounts=accounts,
+                           user_name=session.get('user_name', 'User'))
+
+
+@app.route('/add_account', methods=['POST'])
+def add_account():
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect(url_for('login'))
+
+    account_name = request.form.get('account_name')
+    account_type = request.form.get('account_type')
+    account_balance = request.form.get('account_balance')
+
+    if not all([account_name, account_type, account_balance is not None]):
+        flash('Missing account information.', 'error')
+        return redirect(url_for('manage_accounts'))
+
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor()
+            cursor.execute("""
+                INSERT INTO accounts (Account_Name, Account_Type, Account_Balance)
+                VALUES (%s, %s, %s)
+            """, (account_name, account_type, account_balance))
+            account_id = cursor.lastrowid
+            cursor.execute("INSERT INTO has (User_ID, Account_ID) VALUES (%s, %s)", (user_id, account_id))
+            db.commit()
+            cursor.close()
+            flash('Account added successfully.', 'success')
+    except Exception as e:
+        print(f"Error adding account: {e}")
+        flash('Failed to add account.', 'error')
+
+    return redirect(url_for('manage_accounts'))
+
+
+@app.route('/edit_account/<int:account_id>', methods=['POST'])
+def edit_account(account_id):
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect(url_for('login'))
+
+    account_name = request.form.get('account_name')
+    account_type = request.form.get('account_type')
+    account_balance = request.form.get('account_balance')
+
+    if not all([account_name, account_type, account_balance is not None]):
+        flash('Missing account information for update.', 'error')
+        return redirect(url_for('manage_accounts'))
+
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor()
+            # IMPORTANT: Check if the account belongs to the user
+            cursor.execute("SELECT 1 FROM has WHERE User_ID = %s AND Account_ID = %s", (user_id, account_id))
+            if not cursor.fetchone():
+                 flash('Account not found or access denied.', 'error')
+            else:
+                cursor.execute("""
+                    UPDATE accounts SET Account_Name = %s, Account_Type = %s, Account_Balance = %s
+                    WHERE Account_ID = %s
+                """, (account_name, account_type, account_balance, account_id))
+                db.commit()
+                flash('Account updated successfully.', 'success')
+            cursor.close()
+    except Exception as e:
+        print(f"Error editing account: {e}")
+        flash('Failed to update account.', 'error')
+
+    return redirect(url_for('manage_accounts'))
+
+
+@app.route('/delete_account/<int:account_id>', methods=['POST'])
+def delete_account(account_id):
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect(url_for('login'))
+
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor()
+            # IMPORTANT: Check ownership
+            cursor.execute("SELECT 1 FROM has WHERE User_ID = %s AND Account_ID = %s", (user_id, account_id))
+            if not cursor.fetchone():
+                 flash('Account not found or access denied.', 'error')
+            else:
+                # Optional: Check if account has transactions and warn/prevent deletion
+                cursor.execute("SELECT 1 FROM made_on WHERE Account_ID = %s LIMIT 1", (account_id,))
+                if cursor.fetchone():
+                    flash('Cannot delete account because it has associated transactions. Reassign transactions first.', 'warning')
+                    # Note: If you allow deletion, transactions will lose their account link unless handled.
+                    # To actually delete, you would proceed here. For safety, we prevent it for now.
+                else:
+                    # Delete the link first
+                    cursor.execute("DELETE FROM has WHERE User_ID = %s AND Account_ID = %s", (user_id, account_id))
+                    # Then delete the account itself
+                    cursor.execute("DELETE FROM accounts WHERE Account_ID = %s", (account_id,))
+                    db.commit()
+                    flash('Account deleted successfully.', 'success')
+            cursor.close()
+    except Exception as e:
+        print(f"Error deleting account: {e}")
+        flash(f'Failed to delete account: {e}', 'error') # Show specific error if needed
+
+    return redirect(url_for('manage_accounts'))
 
 if __name__ == '__main__':
-     app.run(debug=True, host="0.0.0.0", port=int(os.getenv("FLASK_PORT", 5000)))
+     app.run(debug=True, host="0.0.0.0", port=int(os.getenv("FLASK_PORT", "5000")))

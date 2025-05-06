@@ -4,61 +4,53 @@
   <meta charset="UTF-8">
   <title>Category Manager</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <style>
-    body {
-      background-color: #e9f2ff;
-    }
-    .container {
-      max-width: 700px;
-      margin-top: 60px;
-      background: white;
-      padding: 30px;
-      border-radius: 12px;
-      box-shadow: 0 0 20px rgba(0, 91, 187, 0.1);
-    }
-    h2 {
-      color: #0d6efd;
-    }
-    .form-control:focus {
-      border-color: #0d6efd;
-      box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
-    }
-    .btn-primary, .btn-outline-success, .btn-outline-danger {
-      min-width: 75px;
-    }
-    .btn-outline-success:hover {
-      background-color: #0d6efd;
-      color: white;
-      border-color: #0d6efd;
-    }
-    .btn-outline-danger:hover {
-      background-color: #dc3545;
-      color: white;
-      border-color: #dc3545;
-    }
-    .back-link {
-            display: block;
-            margin-top: 20px;
-            text-align: center;
-            color: #0d6efd;
-            text-decoration: none;
-        }
-
-    .back-link:hover {
-        text-decoration: underline;
-    }
-
-    .editable {
-            padding: 4px 8px;
-            border-radius: 5px;
-        }
-    .editable[contenteditable="true"] {
-        background-color: #e0f0ff;
-        border: 1px solid #007bff;
-    }
-  </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/category.css') }}">
 </head>
 <body>
+  <nav class="navbar navbar-expand-lg px-4">
+    <a class="navbar-brand fs-3 fw-bold" href="{{ url_for('dashboard') }}">Budget Buddy</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav position-absolute start-50 translate-middle-x d-none d-lg-flex">
+            {% if 'user_id' in session %}
+                <li class="nav-item">
+                    <a class="nav-link {% if request.path == url_for('dashboard') %}active{% endif %}" {% if request.path == url_for('dashboard') %}aria-current="page"{% endif %} href="{{ url_for('dashboard') }}">Dashboard</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.path == url_for('manage_transaction') %}active{% endif %}" {% if request.path == url_for('manage_transaction') %}aria-current="page"{% endif %} href="{{ url_for('manage_transaction') }}">Transactions</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.path == url_for('category') %}active{% endif %}" {% if request.path == url_for('category') %}aria-current="page"{% endif %} href="{{ url_for('category') }}">Categories</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.path == url_for('manage_goals') %}active{% endif %}" {% if request.path == url_for('manage_goals') %}aria-current="page"{% endif %} href="{{ url_for('manage_goals') }}">Goals</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.path == url_for('manage_accounts') %}active{% endif %}" {% if request.path == url_for('manage_accounts') %}aria-current="page"{% endif %} href="{{ url_for('manage_accounts') }}">Accounts</a>
+                </li>
+            {% else %}
+                <li class="nav-item">
+                    <a class="nav-link {% if request.path == url_for('login') %}active{% endif %}" href="{{ url_for('login') }}">Login</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.path == url_for('register') %}active{% endif %}" href="{{ url_for('register') }}">Register</a>
+                </li>
+            {% endif %}
+        </ul>    
+        {% if 'user_id' in session %}
+        <ul class="navbar-nav ms-auto align-items-center">
+            <li class="nav-item">
+                <span class="navbar-text me-3">Hello, <strong>{{ user_name | default('User') }}</strong></span>
+            </li>
+            <li class="nav-item">
+                <button class="btn btn-outline-light btn-sm" onclick="window.location.href='{{ url_for('logout') }}'">Logout</button>
+            </li>
+        </ul>
+        {% endif %}
+    </div>
+  </nav>
   <div class="container">
     <h2 class="text-center mb-4">Category Manager</h2>
 
@@ -87,20 +79,21 @@
       </ul>
     </form>
 
+    {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                                        {{ message }}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+                        
+
     <a href="{{ url_for('dashboard') }}" class="back-link">← Back to Dashboard</a>
   </div>
 </body>
 
-<script>
-  function make_editable(index) {
-    const span = document.getElementById(`category-${index}`);
-    const input = document.getElementById(`input-${index}`);
-    span.setAttribute("contenteditable", "true");
-    span.focus();
-
-    span.addEventListener('blur', function() {
-      input.value = span.innerText.trim();
-    });
-  }
-</script>
+<script src="{{ url_for('static', filename='js/category.js') }}"></script>
 </html>
