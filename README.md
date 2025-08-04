@@ -6,6 +6,9 @@
 ## Brief Description
 Our application was designed to help users manage their finances through different features such as data visualization, AI recommendations, etc. Users can set goals, track spendings by adding various transactions, and make smarter financial decisions.
 
+## Demo
+https://github.com/user-attachments/assets/8e26a713-5b67-464f-a3d9-2a6213f526a0
+
 ## Dependencies
 * Anaconda
     * Python 3.12
