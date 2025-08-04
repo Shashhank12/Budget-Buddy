@@ -1,53 +1,25 @@
-// Ensure Bootstrap is loaded before initializing modals
 let editTransactionModal;
 let deleteConfirmModal;
 
-document.addEventListener('DOMContentLoaded', function() {
-    console.log("DOM loaded, initializing transaction page");
-
-    // Initialize Modals after DOM is ready and Bootstrap JS is likely loaded
+document.addEventListener('DOMContentLoaded', function () {
     const editModalElement = document.getElementById('editTransactionModal');
     const deleteModalElement = document.getElementById('deleteConfirmModal');
     if (editModalElement && typeof bootstrap !== 'undefined') {
         editTransactionModal = new bootstrap.Modal(editModalElement);
-    } else {
-        console.error('Edit modal element not found or Bootstrap not loaded');
     }
+    
     if (deleteModalElement && typeof bootstrap !== 'undefined') {
         deleteConfirmModal = new bootstrap.Modal(deleteModalElement);
-    } else {
-        console.error('Delete modal element not found or Bootstrap not loaded');
     }
 
-    // Find all needed DOM elements
     const transactionTableLoading = document.getElementById('transactionTableLoading');
     const transactionTableBody = document.getElementById('transactionTableBody');
     const noTransactionsMessage = document.getElementById('noTransactionsMessage');
-
-    // Check if filter elements exist before trying to access them
     const filterStartDateInput = document.getElementById('filterStartDate');
     const filterEndDateInput = document.getElementById('filterEndDate');
-
-    // **MODIFICATION:** Do NOT set default date values here
-    // Let the inputs start empty to show all transactions initially
-    /*
-    if (filterStartDateInput && filterEndDateInput) {
-        const today = new Date();
-        const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-        const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        const formatDate = (date) => date.toISOString().split('T')[0];
-        filterStartDateInput.value = formatDate(firstDayOfMonth);
-        filterEndDateInput.value = formatDate(lastDayOfMonth);
-    } else {
-        console.error("Start or End date filter inputs not found.");
-    }
-    */
-
-    // Initial load of transactions (will load all since dates are empty)
     loadTransactions();
 });
 
-// Filter elements
 const transactionTableLoading = document.getElementById('transactionTableLoading');
 const transactionTableBody = document.getElementById('transactionTableBody');
 const noTransactionsMessage = document.getElementById('noTransactionsMessage');
@@ -60,8 +32,6 @@ const filterMinAmountInput = document.getElementById('filterMinAmount');
 const filterMaxAmountInput = document.getElementById('filterMaxAmount');
 const filterSortSelect = document.getElementById('filterSort');
 const clearFiltersButton = document.getElementById('clearFilters');
-
-// Modal elements (references for use inside functions)
 const editTransactionId = document.getElementById('editTransactionId');
 const editAmount = document.getElementById('editAmount');
 const editDescription = document.getElementById('editDescription');
@@ -85,17 +55,11 @@ function debounce(func, wait) {
 }
 
 async function loadTransactions() {
-    // Check essential elements needed for loading
     if (!transactionTableLoading || !transactionTableBody || !noTransactionsMessage) {
-         console.error("Error: Core table/loading elements not found.");
-         if (transactionTableBody) {
-             transactionTableBody.innerHTML = '<tr><td colspan="6" class="text-center text-danger p-3">Error: Page elements missing. Cannot load transactions.</td></tr>';
-         }
-         return;
-    }
-     if (!filterCategorySelect || !filterStartDateInput || !filterEndDateInput || !filterDescriptionInput ||
-         !filterAccountSelect || !filterMinAmountInput || !filterMaxAmountInput || !filterSortSelect) {
-         console.warn("Warning: One or more filter elements not found. Filtering might be incomplete.");
+        if (transactionTableBody) {
+            transactionTableBody.innerHTML = '<tr><td colspan="6" class="text-center text-danger p-3">Error: Page elements missing. Cannot load transactions.</td></tr>';
+        }
+        return;
     }
 
     transactionTableLoading.style.display = 'block';
@@ -122,7 +86,6 @@ async function loadTransactions() {
     paramsToDelete.forEach(key => params.delete(key));
 
     const apiUrl = `/api/transactions?${params.toString()}`;
-    console.log("Fetching transactions with filters:", apiUrl);
 
     try {
         const response = await fetch(apiUrl);
@@ -178,7 +141,6 @@ async function loadTransactions() {
         }
 
     } catch (error) {
-        console.error("Error loading transactions:", error);
         transactionTableBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger p-3">Error loading transactions: ${error.message}</td></tr>`;
         noTransactionsMessage.style.display = 'none';
     } finally {
@@ -187,34 +149,34 @@ async function loadTransactions() {
 }
 
 function handleFilterChange() {
-    console.log("Filter changed, reloading transactions...");
     loadTransactions();
 }
 
 function handleClearFilters() {
-    // Check if elements exist before setting value
-    if (filterCategorySelect) filterCategorySelect.value = '';
-    if (filterAccountSelect) filterAccountSelect.value = '';
-    if (filterDescriptionInput) filterDescriptionInput.value = '';
-    if (filterMinAmountInput) filterMinAmountInput.value = '';
-    if (filterMaxAmountInput) filterMaxAmountInput.value = '';
-    if (filterSortSelect) filterSortSelect.value = 'date_desc';
+    if (filterCategorySelect) 
+        filterCategorySelect.value = '';
 
-    // **MODIFICATION:** Clear date fields instead of resetting to current month
-    if (filterStartDateInput) filterStartDateInput.value = '';
-    if (filterEndDateInput) filterEndDateInput.value = '';
-    /* Remove this block:
-    if (filterStartDateInput && filterEndDateInput) {
-         const today = new Date();
-         const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-         const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-         const formatDate = (date) => date.toISOString().split('T')[0];
+    if (filterAccountSelect) 
+        filterAccountSelect.value = '';
 
-         filterStartDateInput.value = formatDate(firstDayOfMonth);
-         filterEndDateInput.value = formatDate(lastDayOfMonth);
-    }
-    */
+    if (filterDescriptionInput) 
+        filterDescriptionInput.value = '';
 
+    if (filterMinAmountInput) 
+        filterMinAmountInput.value = '';
+
+    if (filterMaxAmountInput) 
+        filterMaxAmountInput.value = '';
+
+    if (filterSortSelect) 
+        filterSortSelect.value = 'date_desc';
+
+    if (filterStartDateInput) 
+        filterStartDateInput.value = '';
+
+    if (filterEndDateInput) 
+        filterEndDateInput.value = '';
+    
     loadTransactions();
 }
 
@@ -223,13 +185,11 @@ function handleEditClick(e) {
     const row = document.querySelector(`tbody#transactionTableBody tr[data-transaction-id="${transactionId}"]`);
 
     if (!editTransactionModal) {
-        console.error("Edit modal not initialized.");
         alert("Error: Cannot open edit form.");
         return;
     }
 
     if (!editTransactionId || !editAmount || !editDescription || !editDate || !editCategory || !editAccount) {
-        console.error("One or more edit modal form elements not found.");
         alert("Error: Edit form is broken.");
         return;
     }
@@ -237,7 +197,6 @@ function handleEditClick(e) {
     if (row) {
         const cells = row.cells;
         if (cells.length < 6) {
-            console.error("Table row structure seems incorrect.");
             alert("Error reading transaction data.");
             return;
         }
@@ -250,11 +209,10 @@ function handleEditClick(e) {
 
         let amount = 0;
         try {
-           amount = parseFloat(amountText.replace(/[^0-9.-]+/g, ''));
+            amount = parseFloat(amountText.replace(/[^0-9.-]+/g, ''));
         } catch (parseError) {
-           console.error("Could not parse amount:", amountText, parseError);
-           alert("Error reading transaction amount.");
-           return;
+            alert("Error reading transaction amount.");
+            return;
         }
 
         editTransactionId.value = transactionId;
@@ -271,7 +229,6 @@ function handleEditClick(e) {
                 option.selected = false;
             }
         });
-         if (!categoryFound) console.warn(`Category "${category}" not found in edit dropdown.`);
 
         let accountFound = false;
         Array.from(editAccount.options).forEach(option => {
@@ -282,25 +239,21 @@ function handleEditClick(e) {
                 option.selected = false;
             }
         });
-        if (!accountFound) console.warn(`Account "${accountName}" not found in edit dropdown.`);
 
         editTransactionModal.show();
     } else {
-         console.error(`Row for transaction ID ${transactionId} not found.`);
-         alert("Error: Could not find transaction details to edit.");
+        alert("Error: Could not find transaction details to edit.");
     }
 }
 
 function handleDeleteClick(e) {
-     if (!deleteConfirmModal) {
-        console.error("Delete confirmation modal not initialized.");
+    if (!deleteConfirmModal) {
         alert("Error: Cannot open delete confirmation.");
         return;
     }
-     if (!deleteTransactionId) {
-        console.error("Delete transaction ID input not found in modal.");
-         alert("Error: Delete confirmation is broken.");
-         return;
+    if (!deleteTransactionId) {
+        alert("Error: Delete confirmation is broken.");
+        return;
     }
     const transactionIdVal = e.currentTarget.dataset.id;
     deleteTransactionId.value = transactionIdVal;
@@ -309,7 +262,6 @@ function handleDeleteClick(e) {
 
 async function saveTransactionChanges() {
     if (!editTransactionId || !editAmount || !editDescription || !editDate || !editCategory || !editAccount || !editTransactionModal) {
-        console.error("Cannot save: Edit form elements or modal instance missing.");
         alert("Error: Cannot save changes, form is broken.");
         return;
     }
@@ -323,10 +275,10 @@ async function saveTransactionChanges() {
         account: editAccount.value
     };
 
-     if (!formData.transaction_id || !formData.amount || !formData.date || !formData.category || !formData.account) {
-          alert("Please fill in all required fields (Amount, Date, Category, Account).");
-          return;
-     }
+    if (!formData.transaction_id || !formData.amount || !formData.date || !formData.category || !formData.account) {
+        alert("Please fill in all required fields (Amount, Date, Category, Account).");
+        return;
+    }
 
     try {
         const response = await fetch('/api/transactions/update', {
@@ -340,31 +292,27 @@ async function saveTransactionChanges() {
         const result = await response.json();
 
         if (response.ok && result.success) {
-            // Just close the modal and refresh the data
             editTransactionModal.hide();
             loadTransactions();
         } else {
             const errorMsg = result?.error || result?.message || 'Failed to update transaction';
             alert(`Error: ${errorMsg}`);
-            console.error("Update failed:", result);
         }
     } catch (error) {
-        console.error('Error updating transaction:', error);
         alert('Failed to update transaction due to a network or server error. Please try again.');
     }
 }
 
 async function deleteTransaction() {
     if (!deleteTransactionId || !deleteConfirmModal) {
-        console.error("Cannot delete: Delete confirmation elements missing.");
         alert("Error: Cannot perform deletion.");
         return;
     }
 
     const transactionIdVal = deleteTransactionId.value;
     if (!transactionIdVal) {
-         alert("Error: No transaction selected for deletion.");
-         return;
+        alert("Error: No transaction selected for deletion.");
+        return;
     }
 
     try {
@@ -381,10 +329,8 @@ async function deleteTransaction() {
         } else {
             const errorMsg = result?.error || result?.message || 'Failed to delete transaction';
             alert(`Error: ${errorMsg}`);
-            console.error("Delete failed:", result);
         }
     } catch (error) {
-        console.error('Error deleting transaction:', error);
         alert('Failed to delete transaction due to a network or server error. Please try again.');
     }
 }
@@ -392,15 +338,35 @@ async function deleteTransaction() {
 const debouncedDescriptionHandler = debounce(handleFilterChange, 400);
 const debouncedAmountHandler = debounce(handleFilterChange, 400);
 
-if (filterCategorySelect) filterCategorySelect.addEventListener('change', handleFilterChange);
-if (filterAccountSelect) filterAccountSelect.addEventListener('change', handleFilterChange);
-if (filterStartDateInput) filterStartDateInput.addEventListener('change', handleFilterChange);
-if (filterEndDateInput) filterEndDateInput.addEventListener('change', handleFilterChange);
-if (filterSortSelect) filterSortSelect.addEventListener('change', handleFilterChange);
-if (filterDescriptionInput) filterDescriptionInput.addEventListener('input', debouncedDescriptionHandler);
-if (filterMinAmountInput) filterMinAmountInput.addEventListener('input', debouncedAmountHandler);
-if (filterMaxAmountInput) filterMaxAmountInput.addEventListener('input', debouncedAmountHandler);
-if (clearFiltersButton) clearFiltersButton.addEventListener('click', handleClearFilters);
+if (filterCategorySelect) 
+    filterCategorySelect.addEventListener('change', handleFilterChange);
 
-if (saveTransactionChangesBtn) saveTransactionChangesBtn.addEventListener('click', saveTransactionChanges);
-if (confirmDeleteBtn) confirmDeleteBtn.addEventListener('click', deleteTransaction);
+if (filterAccountSelect) 
+    filterAccountSelect.addEventListener('change', handleFilterChange);
+
+if (filterStartDateInput) 
+    filterStartDateInput.addEventListener('change', handleFilterChange);
+
+if (filterEndDateInput) 
+    filterEndDateInput.addEventListener('change', handleFilterChange);
+
+if (filterSortSelect) 
+    filterSortSelect.addEventListener('change', handleFilterChange);
+
+if (filterDescriptionInput) 
+    filterDescriptionInput.addEventListener('input', debouncedDescriptionHandler);
+
+if (filterMinAmountInput) 
+    filterMinAmountInput.addEventListener('input', debouncedAmountHandler);
+
+if (filterMaxAmountInput) 
+    filterMaxAmountInput.addEventListener('input', debouncedAmountHandler);
+
+if (clearFiltersButton) 
+    clearFiltersButton.addEventListener('click', handleClearFilters);
+
+if (saveTransactionChangesBtn) 
+    saveTransactionChangesBtn.addEventListener('click', saveTransactionChanges);
+
+if (confirmDeleteBtn) 
+    confirmDeleteBtn.addEventListener('click', deleteTransaction);

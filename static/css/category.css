@@ -1,71 +1,70 @@
+:root {
+    --navbar-height: 65px;
+    --content-padding: 30px;
+}
+
 body {
-  background-color: #e9f2ff;
+    background-color: #e9f2ff;
 }
+
 .container {
-  max-width: 700px;
-  margin-top: 60px;
-  background: white;
-  padding: 30px;
-  border-radius: 12px;
-  box-shadow: 0 0 20px rgba(0, 91, 187, 0.1);
+    max-width: 700px;
+    margin-top: 60px;
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 0 20px rgba(0, 91, 187, 0.1);
 }
+
 h2 {
-  color: #0d6efd;
+    color: #0d6efd;
 }
+
 .form-control:focus {
-  border-color: #0d6efd;
-  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
 }
-.btn-primary, .btn-outline-success, .btn-outline-danger {
-  min-width: 75px;
+
+.btn-primary,
+.btn-outline-success,
+.btn-outline-danger {
+    min-width: 75px;
 }
+
 .btn-outline-success:hover {
-  background-color: #0d6efd;
-  color: white;
-  border-color: #0d6efd;
+    background-color: #0d6efd;
+    color: white;
+    border-color: #0d6efd;
 }
+
 .btn-outline-danger:hover {
-  background-color: #dc3545;
-  color: white;
-  border-color: #dc3545;
+    background-color: #dc3545;
+    color: white;
+    border-color: #dc3545;
 }
+
 .back-link {
-        display: block;
-        margin-top: 20px;
-        text-align: center;
-        color: #0d6efd;
-        text-decoration: none;
-    }
+    display: block;
+    margin-top: 20px;
+    text-align: center;
+    color: #0d6efd;
+    text-decoration: none;
+}
 
 .back-link:hover {
     text-decoration: underline;
 }
 
 .editable {
-        padding: 4px 8px;
-        border-radius: 5px;
-    }
+    padding: 4px 8px;
+    border-radius: 5px;
+}
+
 .editable[contenteditable="true"] {
     background-color: #e0f0ff;
     border: 1px solid #007bff;
 }
 
-body { 
-  background-color: #f8f9fa; 
-}
-.navbar { background-color: #0d6efd !important; }
-.navbar-brand, .navbar span, .navbar button, .nav-link { color: white !important; }
-.nav-link.active { font-weight: bold; text-decoration: underline; }
-
-.navbar .nav-link {
-    transition: color 0.2s ease-in-out, transform 0.2s ease-in-out;
-}
-
-.navbar .nav-link:hover {
-    color: #a3cfff !important; 
-    transform: translateY(-2px); 
-}
-
-.navbar .nav-link.active:hover {
-    color: #f8f9fa !important; 
+body {
+    background-color: #f8f9fa;
 }

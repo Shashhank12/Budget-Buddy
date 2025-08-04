@@ -2,7 +2,6 @@
   --chat-popup-width: 380px;
   --chat-popup-height: 500px;
   --chat-fab-size: 55px;
-  --navbar-height: 65px;
   --content-padding: 30px;
 }
 
@@ -10,7 +9,6 @@ html,
 body {
   height: 100%;
   overflow: hidden;
-  font-size: 15px;
 }
 
 body {
@@ -20,23 +18,10 @@ body {
   padding-bottom: 0;
 }
 
-.navbar {
-  background-color: #0d6efd !important;
-  color: white;
-  flex-shrink: 0;
-  height: var(--navbar-height);
-}
-
-.navbar-brand,
-.navbar span,
-.navbar button {
-  color: white !important;
-}
-
 .main-row {
   flex-grow: 1;
   overflow: hidden;
-  height: calc(100vh - var(--navbar-height));
+  height: calc(100vh - 65px);
 }
 
 .sidebar {
@@ -347,115 +332,10 @@ body {
   flex-shrink: 0;
 }
 
-@media (max-width: 1200px) {
-  .chart-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .chart-grid-item.quick-actions {
-    min-height: auto;
-  }
-
-  /* Maintain auto height */
-  .chart-grid-item:not(.quick-actions):not(.prediction-analysis) {
-    min-height: 250px;
-  }
-
-  .chart-grid-item.prediction-analysis {
-    min-height: 360px;
-  }
-
-  /* Increased responsive height */
-  #predictionAnalysisText {
-    max-height: calc(100% - 50px);
-  }
-}
-
-@media (max-width: 992px) {
-  .sidebar {
-    display: none;
-  }
-
-  :root {
-    --chat-popup-width: 350px;
-  }
-}
-
-@media (max-width: 768px) {
-  :root {
-    --chat-popup-width: 90vw;
-    --chat-popup-height: 70vh;
-  }
-
-  #chat-fab {
-    bottom: 15px;
-    right: 15px;
-  }
-
-  #chat-popup {
-    right: 10px;
-    bottom: calc(var(--chat-fab-size) + 25px);
-  }
-
-  .content-area {
-    padding: 15px;
-  }
-
-  .chart-grid-item:not(.prediction-analysis) {
-    min-height: 220px;
-    padding: 10px;
-  }
-
-  /* General item height reduction */
-  .chart-grid-item.prediction-analysis {
-    min-height: 300px;
-  }
-
-  /* Slightly smaller on mobile */
-  body {
-    overflow-y: auto;
-  }
-
-  .main-row,
-  .content-area {
-    height: auto;
-    overflow: visible;
-  }
-}
-
 #pieChartContainerSidebar {
   margin-bottom: 30px;
 }
 
 body {
   background-color: #f8f9fa;
-}
-
-.navbar {
-  background-color: #0d6efd !important;
-}
-
-.navbar-brand,
-.navbar span,
-.navbar button,
-.nav-link {
-  color: white !important;
-}
-
-.nav-link.active {
-  font-weight: bold;
-  text-decoration: underline;
-}
-
-.navbar .nav-link {
-  transition: color 0.2s ease-in-out, transform 0.2s ease-in-out;
-}
-
-.navbar .nav-link:hover {
-  color: #a3cfff !important;
-  transform: translateY(-2px);
-}
-
-.navbar .nav-link.active:hover {
-  color: #f8f9fa !important;
 }

@@ -4,7 +4,7 @@ function make_editable(index) {
     span.setAttribute("contenteditable", "true");
     span.focus();
 
-    span.addEventListener('blur', function() {
-      input.value = span.innerText.trim();
+    span.addEventListener('blur', function () {
+        input.value = span.innerText.trim();
     });
-  }
+}
